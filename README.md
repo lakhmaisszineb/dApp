@@ -5,13 +5,15 @@ Ce README documente l'**environnement**  et **justifie chaque choix technique**.
 
 ## 1. Prérequis et installation
 
-Installer l'extension solidiry depuis les extensions dans VScode.
+Installer l'extension solidity de Nomic Foundation depuis les extensions dans VScode.
 
 | Outil | Version | Pourquoi | Verification
 |---|---|---|
-| Node.js | ≥ 22.10 (LTS) | Exigé par Hardhat 3 | node -v && npm -v |
+| Node.js | ≥ 22.10 (LTS) | Exigé par Hardhat 3 | node -v && npm -v (nodejs.org) |
 | Python | ≥ 3.10 | Slither : pip install slither-analyzer | python --version |
 | MetaMask | dernière | Portefeuille du navigateur pour la dApp | https://metamask.io/download/ |
+
+Apres l'instalation ferme et ouvre VS Code
 
 ```bash
 git clone <url-du-depot> 
@@ -21,7 +23,8 @@ python -m venv .venv && source .venv/bin/activate      # Windows : .venv\Scripts
 pip install -r requirements.txt   # Slither + outils Python
 solc-select install 0.8.28 && solc-select use 0.8.28  # même compilateur que Hardhat, pour Slither
 
-npm test                          # doit afficher 4 tests au vert 
+nppm install  #installer les dépendances JavaScript (Hardhat, OpenZeppelin,...) de package-lock.json
+npm test                          # lancer les tests doit afficher 4 tests au vert 
 ```
 
 Commandes utiles : `npm run build` (compiler), `npm test`, `npm run coverage`, `npm run node` (nœud local persistant le temps d'une session), `npm run slither -- contracts/MonContrat.sol`.
