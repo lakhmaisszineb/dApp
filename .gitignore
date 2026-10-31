@@ -1,0 +1,28 @@
+# Dépendances
+node_modules/
+frontend/node_modules/
+
+# Secrets : on ignore tous les .env 
+.env
+.env.*
+!.env.example
+**/.env
+**/.env.*
+!**/.env.example
+
+# Artefacts de build / tests Hardhat
+artifacts/
+cache/
+types/
+coverage/
+ignition/deployments/chain-31337/
+frontend/dist/
+
+# Python (Slither, script d'analyse bonus)
+.venv/
+__pycache__/
+*.pyc
+
+# Divers
+.DS_Store
+*.log

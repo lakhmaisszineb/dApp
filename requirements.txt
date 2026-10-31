@@ -1,0 +1,10 @@
+# Environnement virtuel :  
+# python -m venv .venv && 
+# .\.venv\Scripts\Activate.ps1 
+# pip install -r requirements.txt
+# Les dépendances JavaScript (Hardhat, OpenZeppelin, Ethers) sont dans package.json.
+# Audit statique 
+slither-analyzer==0.11.6
+solc-select==1.2.0
+
+
