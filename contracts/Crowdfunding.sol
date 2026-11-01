@@ -211,6 +211,10 @@ contract Crowdfunding is AccessControl, ReentrancyGuard, Pausable {
         //  INTERACTIONS 
         // TODO: Dès que le token par campagne sera en place :
         // ICFDToken(campaign.token).mint(msg.sender, cfdAmount);
+        // INTERACTIONS
+        if (cfdAmount > 0) {
+            cfdToken.mint(msg.sender, cfdAmount);
+        }
 
         emit Contributed(campaignId, msg.sender, msg.value, cfdAmount);
     }
