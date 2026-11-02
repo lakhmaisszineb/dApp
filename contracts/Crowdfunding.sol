@@ -43,8 +43,20 @@ contract Crowdfunding is AccessControl, ReentrancyGuard, Pausable {
     /// @notice Taux de conversion : 1 ETH = 1000 CFD (modifiable plus tard si besoin)
     uint256 public constant CFD_RATE = 1000; // uint256 : entier non signé (positif ou nul)
 
-    /// @notice Seuil au-delà duquel le multisig 2-sur-3 est obligatoire (0.5 ETH)
+    /// @notice Seuil au-delà duquel le multisig 2-sur-3 est obligatoire (valeur temporaire, à fixer avec l'équipe)
+    /// @dev    Comparé au montant BRUT du retrait (avant frais) : "au-delà" = strictement supérieur.
     uint256 public constant MULTISIG_THRESHOLD = 0.5 ether; // 1 ether = 10^18 wei
+
+    /// @notice Frais de plateforme, prélevés sur le montant BRUT d'un retrait (donc seulement si la campagne a réussi).
+    /// @dev    Exprimés en POINTS DE BASE (BPS) : 1 point de base = 0,01 %, donc 100 BPS = 1 %.
+    ///         Valeur actuelle : 300 BPS = 3 %. Pour changer le taux, on modifie UNIQUEMENT cette ligne
+    ///         (ex: 250 = 2,5 %). Tout le reste du contrat utilise seulement le NOM PLATFORM_FEE_BPS.
+    ///         C'est une constante : ni l'admin ni personne ne peut la modifier après le déploiement,
+    ///         le bénéficiaire connaît donc à l'avance et définitivement ce qu'il paiera.
+    uint256 public constant PLATFORM_FEE_BPS = 300;
+
+    /// @notice Dénominateur des points de base : 10 000 BPS = 100 %. (À ne pas modifier.)
+    uint256 public constant BPS_DENOMINATOR = 10_000;
 
     /// @notice Durée minimale et maximale d'une campagne (en secondes)
     uint256 public constant MIN_DURATION = 1 days;
@@ -79,6 +91,18 @@ contract Crowdfunding is AccessControl, ReentrancyGuard, Pausable {
         bool    isFrozen;         // true si gelée par gouvernance
     }
 
+    // Demande de retrait d'une campagne (une seule par campagne : le bénéficiaire retire tout en une fois).
+    // Les montants sont FIGÉS au moment de la demande : le bénéficiaire, les votants et les signataires
+    // voient exactement les mêmes chiffres (brut, frais, net) avant d'approuver.
+    struct WithdrawalRequest {
+        uint256 grossAmount;       // Montant BRUT qui sort de la campagne
+        uint256 feeAmount;         // Part de la plateforme (frais)
+        uint256 netAmount;         // Part nette du bénéficiaire (brut - frais)
+        bool    requested;         // true une fois la demande faite
+        bool    governanceApproved; // true quand les détenteurs de CFD ont voté pour (appel du contrat Governance)
+        bool    multisigApproved;   // true quand 2 signataires sur 3 ont approuvé (appel du contrat MultiSig)
+    }
+
     // VARIABLES D'ÉTAT
 
     /// @notice Compteur d'identifiants de campagne (commence à 1)
@@ -92,6 +116,14 @@ contract Crowdfunding is AccessControl, ReentrancyGuard, Pausable {
     /// @dev    (mise à jour) Ce mapping est maintenant seulement un HISTORIQUE (affichage, statistiques).
     ///         Le remboursement ne dépend plus de lui mais du solde CFD du porteur.
     mapping(uint256 => mapping(address => uint256)) public contributions;
+
+    /// @notice campaignId => demande de retrait
+    mapping(uint256 => WithdrawalRequest) public withdrawals;
+
+    /// @notice Frais de plateforme déjà prélevés mais pas encore envoyés au multisig
+    /// @dev    On les met de côté au lieu de les envoyer dans la transaction de retrait : si le multisig ne pouvait
+    ///         pas recevoir d'ETH, il bloquerait tous les retraits des bénéficiaires.
+    uint256 public accruedFees;
 
     // Adresses des contrats externes
     // (cfdToken supprimé : il n'y a plus UN token pour tout, mais un token par campagne -> campaigns[id].token)
@@ -125,7 +157,23 @@ contract Crowdfunding is AccessControl, ReentrancyGuard, Pausable {
 
     event CampaignFinalized(uint256 indexed campaignId, CampaignStatus status);
     event CampaignFrozen(uint256 indexed campaignId, bool frozen);
-    event FundsWithdrawn(uint256 indexed campaignId, address indexed beneficiary, uint256 amount);
+    event WithdrawalRequested(
+        uint256 indexed campaignId,
+        address indexed beneficiary,
+        uint256 grossAmount,
+        uint256 feeAmount,
+        uint256 netAmount
+    );
+    event WithdrawalAuthorized(uint256 indexed campaignId, uint256 grossAmount);      // par la gouvernance
+    event WithdrawalMultiSigApproved(uint256 indexed campaignId, uint256 grossAmount); // par le multisig
+    event FundsWithdrawn(
+        uint256 indexed campaignId,
+        address indexed beneficiary,
+        uint256 grossAmount,
+        uint256 feeAmount,
+        uint256 netAmount
+    );
+    event FeesTransferred(address indexed multiSig, uint256 amount);
 
     // CONSTRUCTEUR
 
@@ -136,6 +184,8 @@ contract Crowdfunding is AccessControl, ReentrancyGuard, Pausable {
     constructor(address admin) {
         // constructor : fonction spéciale qui s'exécute une seule fois, au moment du déploiement.
         require(admin != address(0), "Admin zero address");
+        // Garde-fou : si quelqu'un modifie PLATFORM_FEE_BPS par erreur (ex: 30000 au lieu de 300), le déploiement échoue.
+        require(PLATFORM_FEE_BPS <= BPS_DENOMINATOR, "Fee above 100%");
         //L'adresse zéro : 0x0000000000000000000000000000000000000000. 
         //  C'est une adresse spéciale qui ne peut pas recevoir de fonds 
         // (ou plutôt, les fonds envoyés à cette adresse sont perdus à jamais).
@@ -235,10 +285,10 @@ contract Crowdfunding is AccessControl, ReentrancyGuard, Pausable {
         campaign.availableFunds += msg.value;
 
         // Calcul du nombre de CFD à minter
-        // 1 ETH = 1000 CFD  →  msg.value * CFD_RATE
+        // 1 ETH = CFD_RATE CFD  →  msg.value * CFD_RATE
         // (mise à jour) PAS de division par 1 ether : l'ETH (wei) et le CFD ont tous les deux 18 décimales.
-        // Donc 1 wei -> 1000 plus-petites-unités de CFD. Avec la division, une contribution < 0.001 ETH
-        // donnait 0 CFD (donc aucun droit au remboursement) et 1 ETH ne donnait que 1000 unités au lieu de 1000 CFD.
+        // Donc 1 wei -> CFD_RATE plus-petites-unités de CFD. Avec la division, une petite contribution
+        // donnait 0 CFD (donc aucun droit au remboursement) et 1 ETH ne donnait pas le bon nombre de CFD.
         uint256 cfdAmount = msg.value * CFD_RATE;
 
         //  INTERACTIONS 
@@ -290,7 +340,7 @@ contract Crowdfunding is AccessControl, ReentrancyGuard, Pausable {
 
         // (mise à jour) Le remboursement suit les CFD : c'est le PORTEUR actuel des CFD qui est remboursé,
         // pas forcément la personne qui a contribué à l'origine (il a peut-être reçu/acheté les CFD d'un autre).
-        // 1000 CFD = 1 ETH  →  ETH à rembourser = solde CFD / CFD_RATE
+        // CFD_RATE CFD = 1 ETH  →  ETH à rembourser = solde CFD / CFD_RATE
         ICFDToken token = campaign.token;
         uint256 cfdBalance = token.balanceOf(msg.sender);
         uint256 amount = cfdBalance / CFD_RATE;
@@ -367,39 +417,200 @@ contract Crowdfunding is AccessControl, ReentrancyGuard, Pausable {
     }
 
    
-    //                    FONCTION DE RETRAIT (simplifiée)
-   
+    //                    FONCTIONS DE RETRAIT (gouvernance + multisig + frais)
+
+    // Déroulement complet d'un retrait :
+    //   1. requestWithdrawal   (bénéficiaire)  : fige brut / frais / net et ferme la collecte si c'est anticipé
+    //   2. authorizeWithdrawal (contrat Governance) : après le vote des détenteurs de CFD de la campagne
+    //   3. approveWithdrawalMultiSig (contrat MultiSig) : 2 signataires sur 3, SEULEMENT si brut > MULTISIG_THRESHOLD
+    //   4. withdrawFunds       (bénéficiaire)  : paie le net au bénéficiaire, met les frais de côté
+    //   5. withdrawFees        (tout le monde) : envoie les frais accumulés au multisig
+    // Les étapes 2 et 3 sont deux mécanismes DIFFÉRENTS (vote communautaire / signataires) et indépendants :
+    // elles peuvent arriver dans n'importe quel ordre, mais withdrawFunds exige les deux (si le seuil est dépassé).
 
     /**
-     * @notice Permet au bénéficiaire de retirer les fonds d'une campagne réussie.
-     * @dev    Version simplifiée. La version complète avec gouvernance + multisig
-     *         sera ajoutée après synchronisation avec les autres contrats.
+     * @notice Le bénéficiaire demande à retirer les fonds de la campagne.
+     * @dev    Deux cas :
+     *         - campagne déjà Successful (échéance passée, objectif atteint) ;
+     *         - retrait ANTICIPÉ : campagne encore Active mais objectif déjà atteint. La demande ferme alors
+     *           définitivement la collecte (statut Successful) pour que le montant ne change plus pendant le vote.
+     *         Refusé si l'objectif n'est pas atteint : on ne paie jamais des fonds encore nécessaires à un remboursement.
+     *         Cette fonction n'envoie aucun ETH.
+     */
+    function requestWithdrawal(uint256 campaignId) external whenNotPaused {
+        Campaign storage campaign = campaigns[campaignId];
+
+        // CHECKS
+        require(campaign.creator != address(0), "Campaign does not exist");
+        require(msg.sender == campaign.beneficiary, "Only beneficiary");
+        require(!campaign.isFrozen, "Campaign is frozen");
+
+        // Si l'échéance est passée, on met le statut à jour (finalisation paresseuse).
+        _finalizeIfEnded(campaignId, campaign);
+
+        // Retrait anticipé : encore Active (donc avant l'échéance) mais objectif atteint -> on ferme la collecte.
+        if (campaign.status == CampaignStatus.Active) {
+            require(campaign.totalRaised >= campaign.goal, "Goal not reached");
+            campaign.status = CampaignStatus.Successful;
+            emit CampaignFinalized(campaignId, campaign.status);
+        }
+
+        require(campaign.status == CampaignStatus.Successful, "Campaign not successful");
+        require(!withdrawals[campaignId].requested, "Withdrawal already requested");
+        require(campaign.availableFunds > 0, "No funds available");
+
+        // EFFECTS : on fige les montants. Après le statut Successful, availableFunds ne peut plus changer.
+        uint256 grossAmount = campaign.availableFunds;
+        (uint256 feeAmount, uint256 netAmount) = _computeFee(grossAmount);
+
+        withdrawals[campaignId] = WithdrawalRequest({
+            grossAmount: grossAmount,
+            feeAmount: feeAmount,
+            netAmount: netAmount,
+            requested: true,
+            governanceApproved: false,
+            multisigApproved: false
+        });
+
+        emit WithdrawalRequested(campaignId, campaign.beneficiary, grossAmount, feeAmount, netAmount);
+    }
+
+    /**
+     * @notice Enregistre l'autorisation de la gouvernance (vote des détenteurs de CFD adopté et exécuté).
+     * @dev    Uniquement appelable par le contrat de Gouvernance (même principe que setFrozen).
+     */
+    function authorizeWithdrawal(uint256 campaignId) external {
+        require(msg.sender == governance, "Only governance");
+
+        WithdrawalRequest storage request = withdrawals[campaignId];
+        require(request.requested, "No withdrawal requested");
+        require(!request.governanceApproved, "Already authorized");
+        require(campaigns[campaignId].status == CampaignStatus.Successful, "Campaign not successful");
+
+        request.governanceApproved = true;
+
+        emit WithdrawalAuthorized(campaignId, request.grossAmount);
+    }
+
+    /**
+     * @notice Enregistre l'approbation 2-sur-3 des signataires.
+     * @dev    Uniquement appelable par le contrat MultiSig, une fois que 2 signataires sur 3 ont approuvé.
+     *         Demandée seulement si le montant BRUT dépasse MULTISIG_THRESHOLD.
+     */
+    function approveWithdrawalMultiSig(uint256 campaignId) external {
+        require(msg.sender == multiSig, "Only multisig");
+
+        WithdrawalRequest storage request = withdrawals[campaignId];
+        require(request.requested, "No withdrawal requested");
+        require(!request.multisigApproved, "Already approved");
+        require(request.grossAmount > MULTISIG_THRESHOLD, "MultiSig not required");
+        require(campaigns[campaignId].status == CampaignStatus.Successful, "Campaign not successful");
+
+        request.multisigApproved = true;
+
+        emit WithdrawalMultiSigApproved(campaignId, request.grossAmount);
+    }
+
+    /**
+     * @notice Le bénéficiaire reçoit le montant NET ; les frais de plateforme sont mis de côté.
+     * @dev    Revérifie TOUT au moment du paiement (état, gel, pause, autorisations) : un gel ou une annulation
+     *         après le vote bloque quand même le paiement.
+     *         Les frais ne sont prélevés qu'ici : une campagne échouée ou annulée n'en paie jamais
+     *         (le remboursement rend l'intégralité des ETH).
      */
     function withdrawFunds(uint256 campaignId) external nonReentrant whenNotPaused {
         Campaign storage campaign = campaigns[campaignId];
+        WithdrawalRequest storage request = withdrawals[campaignId];
 
+        // CHECKS
         require(campaign.creator != address(0), "Campaign does not exist");
         require(msg.sender == campaign.beneficiary, "Only beneficiary");
         require(campaign.status == CampaignStatus.Successful, "Campaign not successful");
         require(!campaign.fundsWithdrawn, "Funds already withdrawn");
         require(!campaign.isFrozen, "Campaign is frozen");
-        require(campaign.availableFunds > 0, "No funds available");
+        require(request.requested, "No withdrawal requested");
+        require(request.governanceApproved, "Governance approval required");
+        if (request.grossAmount > MULTISIG_THRESHOLD) {
+            require(request.multisigApproved, "MultiSig approval required");
+        }
 
-        uint256 amount = campaign.availableFunds;
+        uint256 grossAmount = request.grossAmount;
+        uint256 feeAmount = request.feeAmount;
+        uint256 netAmount = request.netAmount;
 
         // EFFECTS
-        campaign.availableFunds = 0;
-        campaign.totalWithdrawn += amount;
+        campaign.availableFunds -= grossAmount;
+        campaign.totalWithdrawn += grossAmount;
         campaign.fundsWithdrawn = true;
+        accruedFees += feeAmount;
 
         // INTERACTIONS
-        (bool success, ) = payable(campaign.beneficiary).call{value: amount}("");
+        (bool success, ) = payable(campaign.beneficiary).call{value: netAmount}("");
         require(success, "Withdraw failed");
 
-        emit FundsWithdrawn(campaignId, campaign.beneficiary, amount);
+        emit FundsWithdrawn(campaignId, campaign.beneficiary, grossAmount, feeAmount, netAmount);
+    }
+
+    /**
+     * @notice Envoie les frais accumulés au contrat MultiSig (la trésorerie de la plateforme).
+     * @dev    Appelable par tout le monde : l'argent va TOUJOURS au multisig, personne ne peut le détourner.
+     *         Ensuite, toute sortie d'argent depuis le multisig exige 2 signataires sur 3.
+     *         Le contrat MultiSig doit pouvoir recevoir de l'ETH.
+     */
+    function withdrawFees() external nonReentrant whenNotPaused {
+        require(multiSig != address(0), "MultiSig not set");
+
+        uint256 amount = accruedFees;
+        require(amount > 0, "No fees to transfer");
+
+        // EFFECTS
+        accruedFees = 0;
+
+        // INTERACTIONS
+        (bool success, ) = payable(multiSig).call{value: amount}("");
+        require(success, "Fee transfer failed");
+
+        emit FeesTransferred(multiSig, amount);
+    }
+
+    /**
+     * @notice TRANSPARENCE : ce que le bénéficiaire recevra, avant et après la demande de retrait.
+     * @dev    Avant la demande : calcul sur les fonds disponibles. Après : montants figés de la demande.
+     *         Le frontend affiche ces chiffres au bénéficiaire et aux votants.
+     * @return grossAmount   Montant brut qui sort de la campagne
+     * @return feeAmount     Frais de plateforme
+     * @return netAmount     Montant net reçu par le bénéficiaire
+     * @return needsMultiSig true si l'approbation 2-sur-3 sera exigée (brut > MULTISIG_THRESHOLD)
+     */
+    function previewWithdrawal(uint256 campaignId)
+        external
+        view
+        returns (uint256 grossAmount, uint256 feeAmount, uint256 netAmount, bool needsMultiSig)
+    {
+        require(campaigns[campaignId].creator != address(0), "Campaign does not exist");
+
+        WithdrawalRequest storage request = withdrawals[campaignId];
+        if (request.requested) {
+            grossAmount = request.grossAmount;
+            feeAmount = request.feeAmount;
+            netAmount = request.netAmount;
+        } else {
+            grossAmount = campaigns[campaignId].availableFunds;
+            (feeAmount, netAmount) = _computeFee(grossAmount);
+        }
+        needsMultiSig = grossAmount > MULTISIG_THRESHOLD;
     }
 
     //                    FONCTIONS INTERNES
+
+    /**
+     * @dev Sépare un montant brut en frais de plateforme (PLATFORM_FEE_BPS) et montant net.
+     */
+    function _computeFee(uint256 grossAmount) internal pure returns (uint256 feeAmount, uint256 netAmount) {
+        // Arrondi vers le bas pour les frais : feeAmount + netAmount == grossAmount, aucun wei perdu.
+        feeAmount = (grossAmount * PLATFORM_FEE_BPS) / BPS_DENOMINATOR;
+        netAmount = grossAmount - feeAmount;
+    }
 
     /**
      * @dev Si la campagne est encore "Active" mais que son échéance est passée, fixe son statut final :
