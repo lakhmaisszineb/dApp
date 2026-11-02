@@ -373,7 +373,34 @@ contract Crowdfunding is AccessControl, ReentrancyGuard, Pausable {
 
         emit CampaignFrozen(campaignId, frozen);
     }
-       
+    /**
+     * @notice Annule une campagne (uniquement appelable par le contrat de Gouvernance).
+     *         Les contributeurs pourront alors se faire rembourser.
+     * @param campaignId Identifiant de la campagne
+     * @dev    Une campagne annulée passe au statut Cancelled. Les CFD restent en circulation
+     *         jusqu'au remboursement, où ils seront brûlés.
+     *         Le gel n'empêche pas l'annulation (c'est une décision de gouvernance).
+     */
+    function cancelCampaign(uint256 campaignId) external {
+        require(msg.sender == governance, "Only governance");
+
+        Campaign storage campaign = campaigns[campaignId];
+        require(campaign.creator != address(0), "Campaign does not exist");
+        require(campaign.status == CampaignStatus.Active, "Campaign not active");
+
+        // Finalisation paresseuse : si la deadline est passée, on met à jour le statut avant d'annuler.
+        // (Si la campagne est déjà Successful ou Failed, on ne peut pas l'annuler.)
+        _finalizeIfEnded(campaignId, campaign);
+
+        // Après finalisation, on ne peut annuler qu'une campagne qui est encore Active.
+        // (Si elle est devenue Successful ou Failed, on refuse.)
+        require(campaign.status == CampaignStatus.Active, "Campaign already finalized");
+
+        campaign.status = CampaignStatus.Cancelled;
+
+        emit CampaignFinalized(campaignId, CampaignStatus.Cancelled);
+    }
+        
     //                    FONCTIONS D'ADMINISTRATION
    
 
