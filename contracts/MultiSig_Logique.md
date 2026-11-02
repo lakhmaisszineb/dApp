@@ -37,15 +37,19 @@ Un signataire soumet une transaction. C'est une demande d'action :
 
 **Qui peut soumettre ?** N'importe quel signataire.
 
+**Auto-confirmation :** Le soumetteur compte automatiquement comme **1 confirmation**. Il n'a pas besoin de confirmer à nouveau.
+
 ### 2. La Confirmation
 Les autres signataires confirment la transaction. Chaque confirmation est enregistrée. Un signataire ne peut confirmer qu'une seule fois.
 
-**Combien de confirmations ?** Il en faut **2 sur 3**.
+**Combien de confirmations ?** Il en faut **2 sur 3**. Comme le soumetteur compte pour 1, il ne reste qu'**1 seule** confirmation d'un autre signataire.
 
 ### 3. L'Exécution
-Une fois que 2 signataires ont confirmé, n'importe quel signataire peut exécuter la transaction. Le contrat envoie l'ETH et/ou appelle la fonction.
+Une fois que 2 signataires ont confirmé, **n'importe quel signataire** peut exécuter la transaction. Le contrat envoie l'ETH et/ou appelle la fonction.
 
-**Pourquoi n'importe quel signataire ?** Parce que l'exécution est mécanique. Une fois que la décision est prise (2/3), le contrat n'a qu'à appliquer la règle.
+**Pourquoi un signataire ?** Parce que l'exécution est mécanique, mais réservée aux signataires. Une fois que la décision est prise (2/3), le contrat n'a qu'à appliquer la règle. Les signataires sont les seuls à pouvoir exécuter.
+
+**Note :** Dans la version actuelle, `executeTransaction` est réservé aux signataires (`onlySignataire`). C'est plus strict que de permettre à n'importe qui d'exécuter. Cela évite les abus.
 
 ---
 
@@ -84,8 +88,12 @@ C'est un équilibre entre sécurité et efficacité. Il faut un consensus, mais 
 ### Pourquoi les signataires sont-ils fixes ?
 Parce que c'est plus simple et plus sûr. Si on pouvait changer les signataires, on pourrait les remplacer par des adresses malveillantes. Le professeur ne demande pas de mécanisme de remplacement. On garde ça simple.
 
-### Pourquoi n'importe qui peut exécuter une transaction ?
-Parce que l'exécution est **mécanique**. Une fois que 2/3 ont confirmé, la décision est prise. N'importe qui peut appuyer sur le bouton. C'est la décentralisation.
+### Pourquoi seul un signataire peut exécuter ?
+L'exécution est **mécanique** une fois le seuil 2/3 atteint. Nous avons néanmoins choisi de la réserver aux signataires (`onlySignataire`) : c'est plus strict, plus simple à expliquer, et cohérent avec le reste du contrat.
+
+Certaines implémentations permettent à n'importe qui d'exécuter ; ce n'est pas le choix retenu ici.
+
+
 
 ### Pourquoi le multisig ne peut-il pas être contourné ?
 Parce que `Crowdfunding` vérifie `msg.sender == multiSig` dans `approveWithdrawalMultiSig`. Seul le contrat MultiSig peut appeler cette fonction. Personne d'autre.
@@ -109,6 +117,16 @@ Parce que `Crowdfunding` vérifie `msg.sender == multiSig` dans `approveWithdraw
 
 ---
 
+## Les Limites Assumées
+
+### Pas de révocation de confirmation
+Un signataire ne peut pas annuler sa confirmation. S'il s'est trompé, il ne peut pas revenir en arrière. C'est une limitation volontaire pour simplifier le contrat. Pour un projet académique 2/3, ce n'est pas bloquant.
+
+### Pas de remplacement des signataires
+Les signataires sont fixes. On ne peut pas en ajouter ou en retirer. C'est une limitation volontaire pour éviter les manipulations.
+
+---
+
 ## En Résumé
 
 Le **MultiSig** est un coffre-fort à trois clés où :
@@ -116,6 +134,7 @@ Le **MultiSig** est un coffre-fort à trois clés où :
 *   Il faut **2 signatures sur 3** pour agir.
 *   Les **frais de plateforme** sont stockés ici.
 *   Les **gros retraits** sont approuvés ici.
+*   Seuls les **signataires** peuvent exécuter les transactions.
 
 Tout est transparent, tout est vérifiable, et personne ne peut détourner l'argent. C'est la promesse de la blockchain : **remplacer la confiance envers une personne par la confiance envers du code**.
 
