@@ -350,9 +350,11 @@ contract Crowdfunding is AccessControl, ReentrancyGuard, Pausable {
         campaign.availableFunds -= amount;
         campaign.totalRefunded += amount;
 
-        // On brûle TOUS les CFD du porteur (même s'il reste une poussière < 1 wei qu'on ne peut pas rembourser).
-        // Le token est notre propre contrat (pas un contrat inconnu), l'appel est donc sûr avant l'envoi d'ETH.
-        token.burn(msg.sender, cfdBalance);
+        // CORRECTION : on ne brûle que les CFD effectivement remboursés (amount * CFD_RATE).
+        // Les fractions non remboursables (< 1 wei) restent dans le portefeuille du contributeur.
+        // Elles ne valent plus rien (campagne échouée), mais elles ne sont pas détruites injustement. uint256 cfdToBurn = amount * CFD_RATE;
+        uint256 cfdToBurn = amount * CFD_RATE;
+        token.burn(msg.sender, cfdToBurn);  
 
         // INTERACTIONS
         (bool success, ) = payable(msg.sender).call{value: amount}("");
