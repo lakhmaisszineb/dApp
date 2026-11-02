@@ -1,78 +1,93 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.28;
 
-// ERC-20 : soldes, transferts, approbations et offre totale.
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 
-// Fournit notamment l'infrastructure de signatures utilisée
-// avec ERC20Votes.
 import {ERC20Permit} from
     "@openzeppelin/contracts/token/ERC20/extensions/ERC20Permit.sol";
 
-// Conserve l'historique du pouvoir de vote.
 import {ERC20Votes} from
     "@openzeppelin/contracts/token/ERC20/extensions/ERC20Votes.sol";
 
-// Permet de définir les comptes autorisés à créer les jetons.
 import {AccessControl} from
     "@openzeppelin/contracts/access/AccessControl.sol";
 
-// Nécessaire pour résoudre l'héritage commun
-// entre ERC20Permit et ERC20Votes.
 import {Nonces} from "@openzeppelin/contracts/utils/Nonces.sol";
 
 /**
  * @title CFDToken
+ * @notice Token ERC-20 associé à une seule campagne de crowdfunding.
  *
- * @notice Une instance de ce contrat correspond à UNE campagne.
- *
- * Exemple :
- * - la campagne 1 utilise une première instance ;
- * - la campagne 2 utilise une autre instance.
- *
- * Les soldes, les transferts et les historiques de vote
- * sont indépendants entre ces instances.
- *
- * Règles :
+ * @dev Architecture :
+ * - chaque campagne utilise une instance distincte de ce contrat ;
  * - aucun jeton n'est créé au déploiement ;
- * - seul MINTER_ROLE peut créer des jetons ;
- * - chaque destinataire dispose automatiquement de ses voix ;
- * - la délégation des voix à une autre adresse est interdite ;
- * - les transferts modifient les droits futurs, sans modifier
- *   les droits enregistrés dans un ancien snapshot.
+ * - les jetons utilisent 18 décimales, valeur ERC-20 par défaut ;
+ * - MINTER_ROLE autorise la création ;
+ * - BURNER_ROLE autorise la destruction sans allowance ;
+ * - les voix sont automatiquement déléguées au détenteur ;
+ * - la délégation à une autre adresse est interdite ;
+ * - les changements actuels ne modifient pas les anciens snapshots.
  *
- * Ce contrat ne crée pas les propositions et ne comptabilise
- * pas les bulletins de vote : cela relève de la gouvernance.
+ * Responsabilités :
+ * - Crowdfunding vérifie les contributions et les remboursements ;
+ * - ce contrat gère les jetons, les permissions et les historiques ;
+ * - la gouvernance gère les propositions et les bulletins de vote.
+ *
+ * ERC20Permit fournit les autorisations de dépense par signature.
+ * Cette fonctionnalité n'est pas nécessaire au vote ou au transfert direct.
  */
 contract CFDToken is ERC20, ERC20Permit, ERC20Votes, AccessControl {
-    /// @notice Rôle autorisant l'appel de mint().
+    // =============================================================
+    //                            RÔLES
+    // =============================================================
+
+    /// @notice Permission de créer des CFD avec mint().
     bytes32 public constant MINTER_ROLE = keccak256("MINTER_ROLE");
 
-    /// @notice Campagne à laquelle cette instance appartient.
-    /// @dev immutable : définie au déploiement, non modifiable ensuite.
+    /// @notice Permission de détruire des CFD avec burn().
+    bytes32 public constant BURNER_ROLE = keccak256("BURNER_ROLE");
+
+    // =============================================================
+    //                      IDENTITÉ DE CAMPAGNE
+    // =============================================================
+
+    /// @notice Identifiant de la campagne associée à cette instance.
+    /// @dev Fixé au déploiement et non modifiable ensuite.
     uint256 public immutable campaignId;
 
-    /// @notice Adresse nulle interdite pour les comptes privilégiés.
+    // =============================================================
+    //                           ERREURS
+    // =============================================================
+
+    /// @notice Administrateur ou contrôleur initial égal à l'adresse nulle.
     error InvalidAddress();
 
-    /// @notice Une création de zéro jeton est interdite.
+    /// @notice Tentative de création de zéro jeton.
     error ZeroMintAmount();
 
-    /// @notice Les voix doivent rester attachées au détenteur.
+    /// @notice Tentative de destruction de zéro jeton.
+    error ZeroBurnAmount();
+
+    /// @notice Tentative de délégation des voix à une autre adresse.
     error ExternalDelegationDisabled();
 
+    // =============================================================
+    //                         CONSTRUCTEUR
+    // =============================================================
+
     /**
-     * @param name_ Nom affiché pour ce token.
-     * @param symbol_ Symbole affiché pour ce token.
-     * @param campaignId_ Identifiant de la campagne associée.
+     * @param name_ Nom complet du token.
+     * @param symbol_ Symbole du token.
+     * @param campaignId_ Identifiant de la campagne.
      * @param admin_ Adresse administrant les rôles du token.
-     * @param minter_ Adresse autorisée initialement à créer les jetons.
+     * @param minter_ Contrôleur initial recevant MINTER_ROLE et BURNER_ROLE.
      *
-     * En intégration :
-     * minter_ doit être l'adresse du contrat Crowdfunding.
+     * @dev Dans la dernière version de Crowdfunding :
+     * admin_ et minter_ valent tous les deux address(this).
+     * Crowdfunding est donc administrateur, minter et burner du token.
      *
-     * Dans les tests :
-     * un compte de test représentera ce contrat.
+     * Le paramètre minter_ est conservé pour garder le constructeur
+     * compatible avec le code d'intégration existant.
      */
     constructor(
         string memory name_,
@@ -92,22 +107,28 @@ contract CFDToken is ERC20, ERC20Permit, ERC20Votes, AccessControl {
 
         _grantRole(DEFAULT_ADMIN_ROLE, admin_);
         _grantRole(MINTER_ROLE, minter_);
+        _grantRole(BURNER_ROLE, minter_);
 
-        // Aucun _mint ici :
-        // les jetons seront créés lors des contributions.
+        // Pas de création initiale :
+        // totalSupply() vaut zéro au déploiement.
     }
 
+    // =============================================================
+    //                     CRÉATION DES JETONS
+    // =============================================================
+
     /**
-     * @notice Crée des jetons pour un contributeur.
+     * @notice Crée des CFD pour un destinataire.
+     * @param to Adresse recevant les jetons.
+     * @param amount Quantité en petites unités CFD.
      *
-     * @param to Adresse du destinataire.
-     * @param amount Quantité exprimée dans la plus petite unité CFD.
+     * @dev Seul MINTER_ROLE peut appeler cette fonction.
+     * Crowdfunding vérifie la contribution et calcule la quantité.
      *
-     * Exemple :
-     * 100 CFD = 100 * 10**18 unités.
+     * Avec 18 décimales :
+     * 100 CFD = 100 * 10**18 petites unités.
      *
-     * Le calcul ETH -> CFD est effectué par Crowdfunding.
-     * Cette fonction ne reçoit pas les ETH.
+     * OpenZeppelin refuse un destinataire nul.
      */
     function mint(address to, uint256 amount)
         external
@@ -117,20 +138,62 @@ contract CFDToken is ERC20, ERC20Permit, ERC20Votes, AccessControl {
             revert ZeroMintAmount();
         }
 
-        // OpenZeppelin refuse automatiquement un destinataire nul.
-        // _mint appelle également notre fonction _update.
         _mint(to, amount);
     }
 
+    // =============================================================
+    //                    DESTRUCTION DES JETONS
+    // =============================================================
+
     /**
-     * @dev Point de passage des créations, transferts et destructions.
+     * @notice Détruit des CFD détenus par une adresse.
+     * @param from Adresse dont les jetons sont détruits.
+     * @param amount Quantité en petites unités CFD.
      *
-     * super._update :
-     * - met à jour les soldes ERC-20 ;
-     * - met à jour l'historique ERC20Votes.
+     * @dev Seul BURNER_ROLE peut appeler cette fonction.
+     * Aucune allowance du détenteur n'est nécessaire.
      *
-     * Après réception, si le compte n'a pas encore activé ses voix,
-     * nous les activons automatiquement sur sa propre adresse.
+     * IMPORTANT :
+     * Le token ne vérifie pas l'état de la campagne.
+     * Crowdfunding doit vérifier l'éligibilité au remboursement
+     * et déterminer la quantité à détruire.
+     *
+     * OpenZeppelin refuse :
+     * - une adresse source nulle ;
+     * - une quantité supérieure au solde.
+     *
+     * La destruction réduit :
+     * - le solde de from ;
+     * - totalSupply ;
+     * - son pouvoir de vote actuel.
+     *
+     * Les voix des anciens snapshots restent inchangées.
+     */
+    function burn(address from, uint256 amount)
+        external
+        onlyRole(BURNER_ROLE)
+    {
+        if (amount == 0) {
+            revert ZeroBurnAmount();
+        }
+
+        _burn(from, amount);
+    }
+
+    // =============================================================
+    //               SOLDES ET HISTORIQUES DE VOTE
+    // =============================================================
+
+    /**
+     * @dev Point commun aux créations, transferts et destructions.
+     *
+     * super._update conserve les mécanismes hérités :
+     * - mise à jour des soldes et de l'offre totale ;
+     * - émission de Transfer ;
+     * - mise à jour des historiques de vote.
+     *
+     * Après une réception positive, le destinataire est automatiquement
+     * délégué à lui-même s'il n'a pas encore de délégation.
      */
     function _update(
         address from,
@@ -142,8 +205,6 @@ contract CFDToken is ERC20, ERC20Permit, ERC20Votes, AccessControl {
     {
         super._update(from, to, value);
 
-        // Un transfert de zéro ne doit pas activer de délégation.
-        // L'adresse nulle représente une destruction de jetons.
         if (
             to != address(0) &&
             value > 0 &&
@@ -154,10 +215,13 @@ contract CFDToken is ERC20, ERC20Permit, ERC20Votes, AccessControl {
     }
 
     /**
-     * @dev Impose que chaque détenteur utilise ses propres voix.
+     * @dev Autorise uniquement la délégation à soi-même.
      *
-     * Le contrôle se trouve dans la fonction interne commune :
-     * il s'applique aussi aux délégations demandées par signature.
+     * Pour transmettre ses droits futurs à une autre adresse,
+     * le détenteur doit transférer les jetons.
+     *
+     * Ce contrôle s'applique également aux délégations par signature,
+     * car elles passent par cette fonction interne.
      */
     function _delegate(address account, address delegatee)
         internal
@@ -170,8 +234,17 @@ contract CFDToken is ERC20, ERC20Permit, ERC20Votes, AccessControl {
         super._delegate(account, delegatee);
     }
 
+    // =============================================================
+    //                       SIGNATURES
+    // =============================================================
+
     /**
-     * @dev Résout l'héritage commun des compteurs de signatures.
+     * @notice Retourne le nonce actuel d'une adresse.
+     * @param owner Adresse concernée.
+     * @return Compteur actuel utilisé par les mécanismes de signature.
+     *
+     * @dev Résout l'héritage commun entre ERC20Permit et Nonces.
+     * Cette lecture ne consomme pas de nonce.
      */
     function nonces(address owner)
         public
