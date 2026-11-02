@@ -11,6 +11,7 @@ export default defineConfig({
     version: "0.8.28", // exigence du sujet : Solidity ^0.8.x. Version FIGÉE (pas de ^) pour des builds reproductibles
     settings: {
       optimizer: { enabled: true, runs: 200 }, // valeur standard : compromis taille/gas
+      viaIR: true,
     },
   },
 
