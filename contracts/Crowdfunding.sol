@@ -69,6 +69,8 @@ contract Crowdfunding is AccessControl, ReentrancyGuard, Pausable {
         uint256 deadline;         // Timestamp de fin
         uint256 totalRaised;      // Total collecté
         uint256 availableFunds;   // Fonds encore disponibles (après éventuels refunds)
+        uint256 totalRefunded;    // Total déjà remboursé aux porteurs de CFD (historique)
+        uint256 totalWithdrawn;   // Total déjà versé au bénéficiaire (historique)
         string  ipfsHash;         // CID IPFS des métadonnées
         ICFDToken token;          // Contrat CFD PROPRE à cette campagne (un token par campagne)
                                   // Typé avec l'interface (plus sûr que address)
@@ -191,6 +193,8 @@ contract Crowdfunding is AccessControl, ReentrancyGuard, Pausable {
             deadline: deadline,
             totalRaised: 0,
             availableFunds: 0,
+            totalRefunded: 0,
+            totalWithdrawn: 0,
             ipfsHash: ipfsHash,
             token: ICFDToken(address(newToken)),
             status: CampaignStatus.Active,
@@ -256,15 +260,11 @@ contract Crowdfunding is AccessControl, ReentrancyGuard, Pausable {
         require(campaign.creator != address(0), "Campaign does not exist");
         require(campaign.status == CampaignStatus.Active, "Campaign not active");
         require(block.timestamp >= campaign.deadline, "Campaign still running");
-        require(!campaign.isFrozen, "Campaign is frozen");
+        // (mise à jour) On n'exige plus "pas gelée" : le temps continue de s'écouler pendant un gel
+        // (Conception.md §6). Une campagne gelée dont l'échéance est passée doit pouvoir être finalisée,
+        // sinon ses contributeurs ne pourraient jamais être remboursés.
 
-        if (campaign.totalRaised >= campaign.goal) {
-            campaign.status = CampaignStatus.Successful;
-        } else {
-            campaign.status = CampaignStatus.Failed;
-        }
-
-        emit CampaignFinalized(campaignId, campaign.status);
+        _finalizeIfEnded(campaignId, campaign);
     }
     /**
      * @notice Permet à un contributeur de se faire rembourser si la campagne a échoué ou a été annulée.
@@ -275,11 +275,18 @@ contract Crowdfunding is AccessControl, ReentrancyGuard, Pausable {
 
         // CHECKS
         require(campaign.creator != address(0), "Campaign does not exist");
+
+        // (mise à jour) Finalisation "paresseuse" : si l'échéance est passée mais que personne n'a encore appelé
+        // finalizeCampaign, on met le statut à jour ici. Le temps ne lance pas de transaction tout seul
+        // (Conception.md §5) : sans cette ligne, un remboursement serait refusé à tort.
+        _finalizeIfEnded(campaignId, campaign);
+
         require(
             campaign.status == CampaignStatus.Failed || campaign.status == CampaignStatus.Cancelled,
             "Campaign not refundable"
         );
-        require(!campaign.isFrozen, "Campaign is frozen");
+        // (mise à jour) Plus de "pas gelée" ici : rendre l'argent aux porteurs ne met personne en danger,
+        // et Conception.md §6 dit qu'une campagne gelée qui échoue reste remboursable (hors pause).
 
         // (mise à jour) Le remboursement suit les CFD : c'est le PORTEUR actuel des CFD qui est remboursé,
         // pas forcément la personne qui a contribué à l'origine (il a peut-être reçu/acheté les CFD d'un autre).
@@ -291,6 +298,7 @@ contract Crowdfunding is AccessControl, ReentrancyGuard, Pausable {
 
         // EFFECTS (important : on détruit les CFD AVANT d'envoyer l'ETH -> deuxième remboursement impossible)
         campaign.availableFunds -= amount;
+        campaign.totalRefunded += amount;
 
         // On brûle TOUS les CFD du porteur (même s'il reste une poussière < 1 wei qu'on ne peut pas rembourser).
         // Le token est notre propre contrat (pas un contrat inconnu), l'appel est donc sûr avant l'envoi d'ETH.
@@ -322,18 +330,25 @@ contract Crowdfunding is AccessControl, ReentrancyGuard, Pausable {
     /**
      * @notice Définit l'adresse du contrat de gouvernance.
      * @dev    Uniquement appelable par l'admin.
+     * @dev    (mise à jour) Appelable UNE SEULE FOIS. Sinon l'admin pourrait remplacer la gouvernance par sa propre
+     *         adresse, puis geler ou dégeler les campagnes seul via setFrozen : la décision ne reviendrait plus
+     *         aux détenteurs de CFD. Il faut donc être sûr de l'adresse avant d'appeler (script de déploiement).
      */
     function setGovernance(address _governance) external onlyRole(ADMIN_ROLE) {
         require(_governance != address(0), "Zero address");
+        require(governance == address(0), "Governance already set");
         governance = _governance;
     }
 
     /**
      * @notice Définit l'adresse du contrat multisig.
      * @dev    Uniquement appelable par l'admin.
+     * @dev    (mise à jour) Appelable UNE SEULE FOIS, pour la même raison que setGovernance :
+     *         l'admin ne doit pas pouvoir remplacer les signataires après coup.
      */
     function setMultiSig(address _multiSig) external onlyRole(ADMIN_ROLE) {
         require(_multiSig != address(0), "Zero address");
+        require(multiSig == address(0), "MultiSig already set");
         multiSig = _multiSig;
     }
 
@@ -374,6 +389,7 @@ contract Crowdfunding is AccessControl, ReentrancyGuard, Pausable {
 
         // EFFECTS
         campaign.availableFunds = 0;
+        campaign.totalWithdrawn += amount;
         campaign.fundsWithdrawn = true;
 
         // INTERACTIONS
@@ -381,6 +397,25 @@ contract Crowdfunding is AccessControl, ReentrancyGuard, Pausable {
         require(success, "Withdraw failed");
 
         emit FundsWithdrawn(campaignId, campaign.beneficiary, amount);
+    }
+
+    //                    FONCTIONS INTERNES
+
+    /**
+     * @dev Si la campagne est encore "Active" mais que son échéance est passée, fixe son statut final :
+     *      Successful si l'objectif est atteint, Failed sinon. Sinon ne fait rien.
+     *      internal : appelable seulement depuis ce contrat (finalizeCampaign et refund).
+     */
+    function _finalizeIfEnded(uint256 campaignId, Campaign storage campaign) internal {
+        if (campaign.status == CampaignStatus.Active && block.timestamp >= campaign.deadline) {
+            if (campaign.totalRaised >= campaign.goal) {
+                campaign.status = CampaignStatus.Successful;
+            } else {
+                campaign.status = CampaignStatus.Failed;
+            }
+
+            emit CampaignFinalized(campaignId, campaign.status);
+        }
     }
 }
 
