@@ -1,0 +1,16 @@
+{
+  "title": "Financement de matériel pédagogique",
+  "summary": "Acheter du matériel pour nos activités pédagogiques.",
+  "description": "Notre campagne finance le matériel nécessaire à l'organisation de nos activités.",
+  "category": "Education",
+  "fundsUsage": [
+    {
+      "label": "Matériel",
+      "description": "Achat du matériel pédagogique."
+    },
+    {
+      "label": "Accessoires",
+      "description": "Achat des accessoires nécessaires."
+    }
+  ]
+}

@@ -26,3 +26,6 @@ __pycache__/
 # Divers
 .DS_Store
 *.log
+/backend/.env
+/backend/node_modules/
+/backend/output/
