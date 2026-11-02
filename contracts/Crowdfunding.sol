@@ -283,6 +283,73 @@ contract Crowdfunding is AccessControl, ReentrancyGuard, Pausable {
 
         emit CampaignFrozen(campaignId, frozen);
     }
+       
+    //                    FONCTIONS D'ADMINISTRATION
+   
+
+    /**
+     * @notice Définit l'adresse du contrat de gouvernance.
+     * @dev    Uniquement appelable par l'admin.
+     */
+    function setGovernance(address _governance) external onlyRole(ADMIN_ROLE) {
+        require(_governance != address(0), "Zero address");
+        governance = _governance;
+    }
+
+    /**
+     * @notice Définit l'adresse du contrat multisig.
+     * @dev    Uniquement appelable par l'admin.
+     */
+    function setMultiSig(address _multiSig) external onlyRole(ADMIN_ROLE) {
+        require(_multiSig != address(0), "Zero address");
+        multiSig = _multiSig;
+    }
+
+    /**
+     * @notice Pause d'urgence de toute la plateforme (circuit breaker).
+     */
+    function pause() external onlyRole(ADMIN_ROLE) {
+        _pause();
+    }
+
+    /**
+     * @notice Reprend les opérations après une pause.
+     */
+    function unpause() external onlyRole(ADMIN_ROLE) {
+        _unpause();
+    }
+
+   
+    //                    FONCTION DE RETRAIT (simplifiée)
+   
+
+    /**
+     * @notice Permet au bénéficiaire de retirer les fonds d'une campagne réussie.
+     * @dev    Version simplifiée. La version complète avec gouvernance + multisig
+     *         sera ajoutée après synchronisation avec les autres contrats.
+     */
+    function withdrawFunds(uint256 campaignId) external nonReentrant whenNotPaused {
+        Campaign storage campaign = campaigns[campaignId];
+
+        require(campaign.creator != address(0), "Campaign does not exist");
+        require(msg.sender == campaign.beneficiary, "Only beneficiary");
+        require(campaign.status == CampaignStatus.Successful, "Campaign not successful");
+        require(!campaign.fundsWithdrawn, "Funds already withdrawn");
+        require(!campaign.isFrozen, "Campaign is frozen");
+        require(campaign.availableFunds > 0, "No funds available");
+
+        uint256 amount = campaign.availableFunds;
+
+        // EFFECTS
+        campaign.availableFunds = 0;
+        campaign.fundsWithdrawn = true;
+
+        // INTERACTIONS
+        (bool success, ) = payable(campaign.beneficiary).call{value: amount}("");
+        require(success, "Withdraw failed");
+
+        emit FundsWithdrawn(campaignId, campaign.beneficiary, amount);
+    }
 }
 
 
