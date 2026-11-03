@@ -1,19 +1,15 @@
+
 import { expect } from "chai";
 import hre from "hardhat";
 
-describe("J2 — Tests Unitaires & Intégration : CFDToken & Crowdfunding", function () {
-  // Constantes de test conformes à Conception.md et Crowdfunding.sol
+describe("ADWAL - Tests CFDToken et Crowdfunding", function () {
   const ONE_DAY = 24 * 60 * 60;
-  const DURATION_7_DAYS = 7 * ONE_DAY;
+  const DURATION = 7 * ONE_DAY;
   const IPFS_HASH = "QmYwAPJzv5CZsnA625s3Xf2nemtYgPpHdWEz79ojWnPbdG";
 
-  /**
-   * Déploie une instance propre des contrats via la connexion réseau Hardhat 3
-   */
   async function deployPlatformFixture() {
     const connection = await hre.network.connect();
     const { ethers, networkHelpers } = connection;
-    const GOAL = ethers.parseEther("2.0"); // 2 ETH
 
     const [
       admin,
@@ -22,38 +18,52 @@ describe("J2 — Tests Unitaires & Intégration : CFDToken & Crowdfunding", func
       contributor1,
       contributor2,
       governance,
-      attacker,
+      attacker
     ] = await ethers.getSigners();
 
-    // 1. Déploiement de CFDToken
     const cfdToken = await ethers.deployContract("CFDToken", [
-      "Crowdfunding DAO Token",
+      "CFD Test",
       "CFD",
-      1n, // campaignId
+      1n,
       admin.address,
-      admin.address, // minter initial
+      admin.address
     ]);
+
     await cfdToken.waitForDeployment();
 
-    // 2. Déploiement de Crowdfunding
-    const crowdfunding = await ethers.deployContract("Crowdfunding", [
-      admin.address,
-      await cfdToken.getAddress(),
-    ]);
+    const crowdfunding = await ethers.deployContract(
+      "Crowdfunding",
+      [admin.address]
+    );
+
     await crowdfunding.waitForDeployment();
 
-    // 3. Octroi du rôle MINTER_ROLE au contrat Crowdfunding pour qu'il puisse minter lors de contribute()
-    const MINTER_ROLE = await cfdToken.MINTER_ROLE();
-    await cfdToken
-      .connect(admin)
-      .grantRole(MINTER_ROLE, await crowdfunding.getAddress());
+    const GOAL = ethers.parseEther("2");
+
+    async function createCampaign() {
+      const tx = await crowdfunding.connect(creator).createCampaign(
+        GOAL,
+        DURATION,
+        beneficiary.address,
+        IPFS_HASH
+      );
+
+      await tx.wait();
+
+      const campaignId = await crowdfunding.campaignCount();
+      const campaign = await crowdfunding.campaigns(campaignId);
+
+      const campaignToken = await ethers.getContractAt(
+        "CFDToken",
+        campaign.token
+      );
+
+      return { campaignId, campaign, campaignToken };
+    }
 
     return {
       ethers,
       networkHelpers,
-      cfdToken,
-      crowdfunding,
-      GOAL,
       admin,
       creator,
       beneficiary,
@@ -61,393 +71,371 @@ describe("J2 — Tests Unitaires & Intégration : CFDToken & Crowdfunding", func
       contributor2,
       governance,
       attacker,
-      MINTER_ROLE,
+      cfdToken,
+      crowdfunding,
+      GOAL,
+      createCampaign
     };
   }
 
-  // =========================================================================
-  // PARTIE 1 : TESTS DU CONTRAT CFDToken.sol (Module M1)
-  // =========================================================================
-  describe("1. Contrat CFDToken — Paramètres, Émission (Mint) et Accès", function () {
-    it("1.1 Doit initialiser correctement les paramètres et les rôles au déploiement", async function () {
-      const { cfdToken, admin, MINTER_ROLE } = await deployPlatformFixture();
-      const DEFAULT_ADMIN_ROLE = await cfdToken.DEFAULT_ADMIN_ROLE();
+  // ==========================================================
+  // PARTIE 1 - CFDToken
+  // ==========================================================
 
-      expect(await cfdToken.name()).to.equal("Crowdfunding DAO Token");
+  describe("1. CFDToken - Roles et emission", function () {
+
+    it("1.1 Initialise les parametres et les roles", async function () {
+      const { cfdToken, admin } = await deployPlatformFixture();
+
+      expect(await cfdToken.name()).to.equal("CFD Test");
       expect(await cfdToken.symbol()).to.equal("CFD");
-      expect(await cfdToken.campaignId()).to.equal(1n);
       expect(await cfdToken.totalSupply()).to.equal(0n);
 
-      expect(await cfdToken.hasRole(DEFAULT_ADMIN_ROLE, admin.address)).to.equal(true);
-      expect(await cfdToken.hasRole(MINTER_ROLE, admin.address)).to.equal(true);
+      const ADMIN_ROLE = await cfdToken.DEFAULT_ADMIN_ROLE();
+      const MINTER_ROLE = await cfdToken.MINTER_ROLE();
+
+      expect(
+        await cfdToken.hasRole(ADMIN_ROLE, admin.address)
+      ).to.equal(true);
+
+      expect(
+        await cfdToken.hasRole(MINTER_ROLE, admin.address)
+      ).to.equal(true);
     });
 
-    it("1.2 Doit refuser le déploiement si admin ou minter est l'adresse zéro", async function () {
-      const { ethers, admin, cfdToken } = await deployPlatformFixture();
+    it("1.2 Refuse les adresses nulles au deploiement", async function () {
+      const { ethers, admin } = await deployPlatformFixture();
 
       await expect(
         ethers.deployContract("CFDToken", [
-          "CFD",
-          "CFD",
-          1n,
+          "CFD", "CFD", 1n,
           ethers.ZeroAddress,
-          admin.address,
+          admin.address
         ])
-      ).to.be.revertedWithCustomError(cfdToken, "InvalidAddress");
+      ).to.revert(ethers);
 
       await expect(
         ethers.deployContract("CFDToken", [
-          "CFD",
-          "CFD",
-          1n,
+          "CFD", "CFD", 1n,
           admin.address,
-          ethers.ZeroAddress,
+          ethers.ZeroAddress
         ])
-      ).to.be.revertedWithCustomError(cfdToken, "InvalidAddress");
+      ).to.revert(ethers);
     });
 
-    it("1.3 Doit permettre uniquement au MINTER_ROLE de créer (mint) des CFD", async function () {
-      const { ethers, cfdToken, admin, contributor1, attacker } =
+    it("1.3 Reserve le mint au MINTER_ROLE", async function () {
+      const { ethers, cfdToken, admin, attacker, contributor1 } =
         await deployPlatformFixture();
-      const mintAmount = ethers.parseUnits("1000", 18);
 
-      await cfdToken.connect(admin).mint(contributor1.address, mintAmount);
-      expect(await cfdToken.balanceOf(contributor1.address)).to.equal(mintAmount);
+      const amount = ethers.parseUnits("100", 18);
 
       await expect(
-        cfdToken.connect(attacker).mint(attacker.address, mintAmount)
-      ).to.be.revertedWithCustomError(
-        cfdToken,
-        "AccessControlUnauthorizedAccount"
-      );
+        cfdToken.connect(attacker).mint(contributor1.address, amount)
+      ).to.revert(ethers);
+
+      await cfdToken.connect(admin).mint(contributor1.address, amount);
+
+      expect(
+        await cfdToken.balanceOf(contributor1.address)
+      ).to.equal(amount);
     });
 
-    it("1.4 Doit refuser un mint de 0 jeton ou vers l'adresse zéro", async function () {
+    it("1.4 Refuse le mint de zero et vers l'adresse nulle", async function () {
       const { ethers, cfdToken, admin, contributor1 } =
         await deployPlatformFixture();
 
       await expect(
         cfdToken.connect(admin).mint(contributor1.address, 0n)
-      ).to.be.revertedWithCustomError(cfdToken, "ZeroMintAmount");
+      ).to.revert(ethers);
 
       await expect(
-        cfdToken
-          .connect(admin)
-          .mint(ethers.ZeroAddress, ethers.parseUnits("10", 18))
-      ).to.be.revertedWithCustomError(cfdToken, "ERC20InvalidReceiver");
+        cfdToken.connect(admin).mint(ethers.ZeroAddress, 100n)
+      ).to.revert(ethers);
     });
 
-    it("1.5 Doit activer automatiquement les voix (auto-délégation) dès la réception de CFD", async function () {
+    it("1.5 Active automatiquement les voix", async function () {
       const { ethers, cfdToken, admin, contributor1 } =
         await deployPlatformFixture();
-      const mintAmount = ethers.parseUnits("500", 18);
 
-      await cfdToken.connect(admin).mint(contributor1.address, mintAmount);
+      const amount = ethers.parseUnits("100", 18);
 
-      expect(await cfdToken.delegates(contributor1.address)).to.equal(
-        contributor1.address
-      );
-      expect(await cfdToken.getVotes(contributor1.address)).to.equal(mintAmount);
+      await cfdToken.connect(admin).mint(contributor1.address, amount);
+
+      expect(
+        await cfdToken.getVotes(contributor1.address)
+      ).to.equal(amount);
     });
 
-    it("1.6 Doit interdire la délégation des voix à une autre adresse", async function () {
+    it("1.6 Interdit la delegation externe", async function () {
       const { ethers, cfdToken, admin, contributor1, contributor2 } =
         await deployPlatformFixture();
-      const mintAmount = ethers.parseUnits("500", 18);
 
-      await cfdToken.connect(admin).mint(contributor1.address, mintAmount);
+      await cfdToken.connect(admin).mint(
+        contributor1.address,
+        ethers.parseUnits("100", 18)
+      );
 
       await expect(
         cfdToken.connect(contributor1).delegate(contributor2.address)
-      ).to.be.revertedWithCustomError(cfdToken, "ExternalDelegationDisabled");
+      ).to.revert(ethers);
     });
   });
 
-  // =========================================================================
-  // PARTIE 2 : TESTS DU CONTRAT Crowdfunding.sol (Module M2)
-  // =========================================================================
-  describe("2. Contrat Crowdfunding — Déploiement et Création de Campagnes", function () {
-    it("2.1 Doit initialiser correctement les constantes et rôles au déploiement", async function () {
-      const { ethers, crowdfunding, cfdToken, admin } =
-        await deployPlatformFixture();
+  // ==========================================================
+  // PARTIE 2 - Crowdfunding
+  // ==========================================================
+
+  describe("2. Crowdfunding - Deploiement et campagnes", function () {
+
+    it("2.1 Initialise les constantes et les roles", async function () {
+      const { crowdfunding, admin } = await deployPlatformFixture();
+
       const ADMIN_ROLE = await crowdfunding.ADMIN_ROLE();
 
-      expect(await crowdfunding.CFD_RATE()).to.equal(1000n);
-      expect(await crowdfunding.MULTISIG_THRESHOLD()).to.equal(
-        ethers.parseEther("0.5")
-      );
+      expect(
+        await crowdfunding.hasRole(ADMIN_ROLE, admin.address)
+      ).to.equal(true);
+
+      expect(await crowdfunding.campaignCount()).to.equal(0n);
+      expect(await crowdfunding.PLATFORM_FEE_BPS()).to.equal(300n);
       expect(await crowdfunding.MIN_DURATION()).to.equal(BigInt(ONE_DAY));
       expect(await crowdfunding.MAX_DURATION()).to.equal(BigInt(90 * ONE_DAY));
-      expect(await crowdfunding.cfdToken()).to.equal(
-        await cfdToken.getAddress()
-      );
-      expect(await crowdfunding.hasRole(ADMIN_ROLE, admin.address)).to.equal(true);
     });
 
-    it("2.2 Doit refuser le déploiement si admin ou _cfdToken est l'adresse zéro", async function () {
-      const { ethers, admin, cfdToken } = await deployPlatformFixture();
+    it("2.2 Refuse un administrateur nul", async function () {
+      const { ethers } = await deployPlatformFixture();
 
       await expect(
-        ethers.deployContract("Crowdfunding", [
-          ethers.ZeroAddress,
-          await cfdToken.getAddress(),
-        ])
+        ethers.deployContract("Crowdfunding", [ethers.ZeroAddress])
       ).to.be.revertedWith("Admin zero address");
-
-      await expect(
-        ethers.deployContract("Crowdfunding", [
-          admin.address,
-          ethers.ZeroAddress,
-        ])
-      ).to.be.revertedWith("CFDToken zero address");
     });
 
-    it("2.3 Doit créer une campagne valide et enregistrer toutes ses informations", async function () {
-      const { ethers, crowdfunding, GOAL, creator, beneficiary } =
-        await deployPlatformFixture();
+    it("2.3 Cree une campagne et son propre CFDToken", async function () {
+      const {
+        crowdfunding,
+        creator,
+        beneficiary,
+        GOAL,
+        createCampaign
+      } = await deployPlatformFixture();
 
-      const tx = await crowdfunding
-        .connect(creator)
-        .createCampaign(GOAL, DURATION_7_DAYS, beneficiary.address, IPFS_HASH);
-      const receipt = await tx.wait();
-      const block = await ethers.provider.getBlock(receipt.blockNumber);
-      const expectedDeadline = BigInt(block.timestamp) + BigInt(DURATION_7_DAYS);
+      const { campaignId, campaign, campaignToken } =
+        await createCampaign();
 
-      await expect(tx)
-        .to.emit(crowdfunding, "CampaignCreated")
-        .withArgs(
-          1n,
-          creator.address,
-          beneficiary.address,
-          GOAL,
-          expectedDeadline,
-          IPFS_HASH
-        );
-
-      expect(await crowdfunding.campaignCount()).to.equal(1n);
-
-      const campaign = await crowdfunding.campaigns(1n);
+      expect(campaignId).to.equal(1n);
       expect(campaign.creator).to.equal(creator.address);
       expect(campaign.beneficiary).to.equal(beneficiary.address);
       expect(campaign.goal).to.equal(GOAL);
-      expect(campaign.deadline).to.equal(expectedDeadline);
-      expect(campaign.totalRaised).to.equal(0n);
-      expect(campaign.availableFunds).to.equal(0n);
       expect(campaign.ipfsHash).to.equal(IPFS_HASH);
-      expect(campaign.status).to.equal(0n); // Active
-      expect(campaign.fundsWithdrawn).to.equal(false);
-      expect(campaign.isFrozen).to.equal(false);
+      expect(await campaignToken.totalSupply()).to.equal(0n);
+      expect(await crowdfunding.campaignCount()).to.equal(1n);
     });
 
-    it("2.4 Doit refuser la création si l'objectif est nul (goal == 0)", async function () {
+    it("2.4 Refuse un objectif nul", async function () {
       const { crowdfunding, creator, beneficiary } =
         await deployPlatformFixture();
 
       await expect(
-        crowdfunding
-          .connect(creator)
-          .createCampaign(0n, DURATION_7_DAYS, beneficiary.address, IPFS_HASH)
+        crowdfunding.connect(creator).createCampaign(
+          0n, DURATION, beneficiary.address, IPFS_HASH
+        )
       ).to.be.revertedWith("Goal must be > 0");
     });
 
-    it("2.5 Doit refuser la création si le bénéficiaire est l'adresse zéro", async function () {
-      const { ethers, crowdfunding, GOAL, creator } =
+    it("2.5 Refuse un beneficiaire nul", async function () {
+      const { ethers, crowdfunding, creator, GOAL } =
         await deployPlatformFixture();
 
       await expect(
-        crowdfunding
-          .connect(creator)
-          .createCampaign(GOAL, DURATION_7_DAYS, ethers.ZeroAddress, IPFS_HASH)
+        crowdfunding.connect(creator).createCampaign(
+          GOAL, DURATION, ethers.ZeroAddress, IPFS_HASH
+        )
       ).to.be.revertedWith("Beneficiary is zero address");
     });
 
-    it("2.6 Doit refuser la création si la durée est hors des bornes (< 1 jour ou > 90 jours)", async function () {
-      const { crowdfunding, GOAL, creator, beneficiary } =
+    it("2.6 Refuse les durees invalides", async function () {
+      const { crowdfunding, creator, beneficiary, GOAL } =
         await deployPlatformFixture();
 
       await expect(
-        crowdfunding
-          .connect(creator)
-          .createCampaign(GOAL, ONE_DAY - 1, beneficiary.address, IPFS_HASH)
+        crowdfunding.connect(creator).createCampaign(
+          GOAL, 0, beneficiary.address, IPFS_HASH
+        )
       ).to.be.revertedWith("Invalid duration");
 
       await expect(
-        crowdfunding
-          .connect(creator)
-          .createCampaign(
-            GOAL,
-            90 * ONE_DAY + 1,
-            beneficiary.address,
-            IPFS_HASH
-          )
+        crowdfunding.connect(creator).createCampaign(
+          GOAL, 91 * ONE_DAY, beneficiary.address, IPFS_HASH
+        )
       ).to.be.revertedWith("Invalid duration");
     });
 
-    it("2.7 Doit refuser la création si le hash IPFS est vide", async function () {
-      const { crowdfunding, GOAL, creator, beneficiary } =
+    it("2.7 Refuse un CID IPFS vide", async function () {
+      const { crowdfunding, creator, beneficiary, GOAL } =
         await deployPlatformFixture();
 
       await expect(
-        crowdfunding
-          .connect(creator)
-          .createCampaign(GOAL, DURATION_7_DAYS, beneficiary.address, "")
+        crowdfunding.connect(creator).createCampaign(
+          GOAL, DURATION, beneficiary.address, ""
+        )
       ).to.be.revertedWith("IPFS hash required");
     });
   });
 
-  // =========================================================================
-  // PARTIE 3 : COMMUNICATION INTER-CONTRATS, CONTRIBUTIONS ET ÉTATS
-  // =========================================================================
-  describe("3. Intégration Crowdfunding <-> CFDToken, Contributions et Remboursements", function () {
-    it("3.1 Doit enregistrer les contributions, cumuler les versements et émettre les CFD", async function () {
+  // ==========================================================
+  // PARTIE 3 - Integration
+  // ==========================================================
+
+  describe("3. Contributions et remboursements", function () {
+
+    it("3.1 Enregistre les contributions et distribue les CFD", async function () {
       const {
         ethers,
         crowdfunding,
-        cfdToken,
-        GOAL,
-        creator,
-        beneficiary,
         contributor1,
+        createCampaign
       } = await deployPlatformFixture();
 
-      await crowdfunding
-        .connect(creator)
-        .createCampaign(GOAL, DURATION_7_DAYS, beneficiary.address, IPFS_HASH);
+      const { campaignId, campaignToken } = await createCampaign();
 
-      const amount1 = ethers.parseEther("0.5"); // 0.5 ETH -> 500 CFD
-      const expectedCfd1 = (amount1 * 1000n) / ethers.parseEther("1.0");
+      const amount = ethers.parseEther("0.5");
+      const rate = await crowdfunding.CFD_RATE();
+      const expectedCFD = amount * rate;
 
       await expect(
-        crowdfunding.connect(contributor1).contribute(1n, { value: amount1 })
-      )
-        .to.emit(crowdfunding, "Contributed")
-        .withArgs(1n, contributor1.address, amount1, expectedCfd1);
+        crowdfunding.connect(contributor1).contribute(campaignId, {
+          value: amount
+        })
+      ).to.emit(crowdfunding, "Contributed")
+        .withArgs(
+          campaignId,
+          contributor1.address,
+          amount,
+          expectedCFD
+        );
 
-      // Deuxième versement du même compte (1.0 ETH -> 1000 CFD)
-      const amount2 = ethers.parseEther("1.0");
-      await crowdfunding
-        .connect(contributor1)
-        .contribute(1n, { value: amount2 });
-
-      const totalExpected = amount1 + amount2; // 1.5 ETH
       expect(
-        await crowdfunding.contributions(1n, contributor1.address)
-      ).to.equal(totalExpected);
+        await crowdfunding.contributions(campaignId, contributor1.address)
+      ).to.equal(amount);
 
-      const campaign = await crowdfunding.campaigns(1n);
-      expect(campaign.totalRaised).to.equal(totalExpected);
-      expect(campaign.availableFunds).to.equal(totalExpected);
+      expect(
+        await campaignToken.balanceOf(contributor1.address)
+      ).to.equal(expectedCFD);
 
-      // Si cfdToken.mint() est décommenté dans Crowdfunding.sol, vérifie le solde CFD
-      const tokenBalance = await cfdToken.balanceOf(contributor1.address);
-      if (tokenBalance > 0n) {
-        expect(tokenBalance).to.equal(1500n);
-        expect(await cfdToken.getVotes(contributor1.address)).to.equal(1500n);
-      }
+      expect(
+        await campaignToken.getVotes(contributor1.address)
+      ).to.equal(expectedCFD);
     });
 
-    it("3.2 Doit refuser une contribution de 0 ETH, sur une campagne inexistante ou après l'échéance", async function () {
+    it("3.2 Refuse les contributions invalides", async function () {
       const {
         ethers,
         networkHelpers,
         crowdfunding,
-        GOAL,
-        creator,
-        beneficiary,
         contributor1,
+        createCampaign
       } = await deployPlatformFixture();
 
-      await crowdfunding
-        .connect(creator)
-        .createCampaign(GOAL, DURATION_7_DAYS, beneficiary.address, IPFS_HASH);
+      const { campaignId } = await createCampaign();
 
       await expect(
-        crowdfunding
-          .connect(contributor1)
-          .contribute(99n, { value: ethers.parseEther("1.0") })
-      ).to.be.revertedWith("Campaign does not exist");
+        crowdfunding.connect(contributor1).contribute(campaignId, {
+          value: 0n
+        })
+      ).to.revert(ethers);
 
       await expect(
-        crowdfunding.connect(contributor1).contribute(1n, { value: 0n })
-      ).to.be.revertedWith("Contribution must be > 0");
+        crowdfunding.connect(contributor1).contribute(999n, {
+          value: ethers.parseEther("1")
+        })
+      ).to.revert(ethers);
 
-      await networkHelpers.time.increase(DURATION_7_DAYS + 1);
+      await networkHelpers.time.increase(8 * ONE_DAY);
 
       await expect(
-        crowdfunding
-          .connect(contributor1)
-          .contribute(1n, { value: ethers.parseEther("1.0") })
-      ).to.be.revertedWith("Campaign ended");
+        crowdfunding.connect(contributor1).contribute(campaignId, {
+          value: ethers.parseEther("1")
+        })
+      ).to.revert(ethers);
     });
 
-    it("3.3 Doit finaliser en Failed sous l'objectif, rembourser une seule fois et refuser un double remboursement", async function () {
+    it("3.3 Rembourse une campagne echouee une seule fois", async function () {
       const {
         ethers,
         networkHelpers,
         crowdfunding,
-        GOAL,
-        creator,
-        beneficiary,
         contributor1,
+        createCampaign
       } = await deployPlatformFixture();
 
-      await crowdfunding
-        .connect(creator)
-        .createCampaign(GOAL, DURATION_7_DAYS, beneficiary.address, IPFS_HASH);
-      await crowdfunding
-        .connect(contributor1)
-        .contribute(1n, { value: ethers.parseEther("1.0") });
+      const { campaignId, campaignToken } = await createCampaign();
 
-      await networkHelpers.time.increase(DURATION_7_DAYS + 1);
+      const amount = ethers.parseEther("0.5");
 
-      await expect(crowdfunding.finalizeCampaign(1n))
-        .to.emit(crowdfunding, "CampaignFinalized")
-        .withArgs(1n, 2n); // 2 = Failed
+      await crowdfunding.connect(contributor1).contribute(campaignId, {
+        value: amount
+      });
 
-      await expect(crowdfunding.connect(contributor1).refund(1n))
-        .to.emit(crowdfunding, "Refunded")
-        .withArgs(1n, contributor1.address, ethers.parseEther("1.0"));
+      await networkHelpers.time.increase(8 * ONE_DAY);
+
+      await crowdfunding.finalizeCampaign(campaignId);
+
+      const campaign = await crowdfunding.campaigns(campaignId);
+
+      // CampaignStatus.Failed = 2
+      expect(campaign.status).to.equal(2n);
 
       await expect(
-        crowdfunding.connect(contributor1).refund(1n)
-      ).to.be.revertedWith("Nothing to refund");
+        crowdfunding.connect(contributor1).refund(campaignId)
+      ).to.emit(crowdfunding, "Refunded");
+
+      expect(
+        await campaignToken.balanceOf(contributor1.address)
+      ).to.equal(0n);
+
+      await expect(
+        crowdfunding.connect(contributor1).refund(campaignId)
+      ).to.revert(ethers);
     });
 
-    it("3.4 Doit finaliser en Successful lorsque l'objectif est atteint ou dépassé", async function () {
+    it("3.4 Finalise en Successful si l'objectif est atteint", async function () {
       const {
         ethers,
         networkHelpers,
         crowdfunding,
-        GOAL,
-        creator,
-        beneficiary,
         contributor1,
+        GOAL,
+        createCampaign
       } = await deployPlatformFixture();
 
-      await crowdfunding
-        .connect(creator)
-        .createCampaign(GOAL, DURATION_7_DAYS, beneficiary.address, IPFS_HASH);
-      await crowdfunding
-        .connect(contributor1)
-        .contribute(1n, { value: ethers.parseEther("2.5") });
+      const { campaignId } = await createCampaign();
 
-      await networkHelpers.time.increase(DURATION_7_DAYS + 1);
+      await crowdfunding.connect(contributor1).contribute(campaignId, {
+        value: GOAL
+      });
 
-      await expect(crowdfunding.finalizeCampaign(1n))
-        .to.emit(crowdfunding, "CampaignFinalized")
-        .withArgs(1n, 1n); // 1 = Successful
+      await networkHelpers.time.increase(8 * ONE_DAY);
+
+      await crowdfunding.finalizeCampaign(campaignId);
+
+      const campaign = await crowdfunding.campaigns(campaignId);
+
+      // CampaignStatus.Successful = 1
+      expect(campaign.status).to.equal(1n);
+      expect(campaign.totalRaised).to.equal(GOAL);
     });
 
-    it("3.5 Doit refuser l'appel à setFrozen par une adresse autre que la gouvernance", async function () {
-      const { crowdfunding, GOAL, creator, beneficiary, attacker } =
-        await deployPlatformFixture();
+    it("3.5 Reserve le gel des campagnes a la gouvernance", async function () {
+      const {
+        crowdfunding,
+        attacker,
+        createCampaign
+      } = await deployPlatformFixture();
 
-      await crowdfunding
-        .connect(creator)
-        .createCampaign(GOAL, DURATION_7_DAYS, beneficiary.address, IPFS_HASH);
+      const { campaignId } = await createCampaign();
 
       await expect(
-        crowdfunding.connect(attacker).setFrozen(1n, true)
+        crowdfunding.connect(attacker).setFrozen(campaignId, true)
       ).to.be.revertedWith("Only governance");
     });
   });

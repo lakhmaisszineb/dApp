@@ -20,6 +20,7 @@ export default function MainLayout() {
       "/creer": "Créer mon projet - Tiwizi",
       "/contribuer": "Contribuer - Tiwizi",
       "/gouvernance": "Gouvernance - Tiwizi",
+      "/admin": "Administration - Tiwizi",
       "/portefeuille": "Mon portefeuille - Tiwizi",
     };
 
@@ -95,6 +96,10 @@ export default function MainLayout() {
 
             <NavLink to="/gouvernance">
               Gouvernance
+            </NavLink>
+
+            <NavLink to="/admin">
+              Administration
             </NavLink>
 
             <NavLink to="/portefeuille">
