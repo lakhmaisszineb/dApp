@@ -53,6 +53,9 @@ interface ICrowdfunding {
     ) external;
 
     function cancelCampaign(uint256 campaignId) external;
+
+    // Horloge logique du Crowdfunding : ne compte pas les pauses d'urgence.
+    function effectiveTime() external view returns (uint256);
 }
 
 /**
@@ -710,7 +713,7 @@ contract Governance is AccessControl, ReentrancyGuard {
             );
 
             require(
-                block.timestamp < campaign.deadline,
+                crowdfunding.effectiveTime() < campaign.deadline,
                 "Campaign already ended"
             );
         }
