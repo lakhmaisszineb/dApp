@@ -1,32 +1,66 @@
-import WalletConnection from "./components/WalletConnection.jsx";
-import PlatformStatus from "./components/PlatformStatus.jsx";
-import ContributionForm from "./components/ContributionForm.jsx";
-import GovernanceDashboard from "./components/GovernanceDashboard.jsx";
+import { Route, Routes } from "react-router";
+
+import { WalletProvider } from "./contexts/WalletContext.jsx";
+
+import MainLayout from "./layouts/MainLayout.jsx";
+
+import HomePage from "./pages/HomePage.jsx";
+import CampaignsPage from "./pages/CampaignsPage.jsx";
+import ProjectDetailsPage from "./pages/ProjectDetailsPage.jsx";
+import CreateCampaignPage from "./pages/CreateCampaignPage.jsx";
+import ContributionPage from "./pages/ContributionPage.jsx";
+import GovernancePage from "./pages/GovernancePage.jsx";
+import WalletPage from "./pages/WalletPage.jsx";
+import NotFoundPage from "./pages/NotFoundPage.jsx";
+
+import "./App.css";
 
 export default function App() {
   return (
-    <main
-      style={{
-        maxWidth: "1000px",
-        margin: "40px auto",
-        padding: "24px",
-      }}
-    >
-      <h1>Notre plateforme de crowdfunding</h1>
+    <WalletProvider>
+      <Routes>
+        <Route element={<MainLayout />}>
+          <Route
+            index
+            element={<HomePage />}
+          />
 
-      <WalletConnection />
+          <Route
+            path="campagnes"
+            element={<CampaignsPage />}
+          />
 
-      <hr style={{ margin: "32px 0" }} />
+          <Route
+            path="campagnes/:id"
+            element={<ProjectDetailsPage />}
+          />
 
-      <PlatformStatus />
+          <Route
+            path="creer"
+            element={<CreateCampaignPage />}
+          />
 
-      <hr style={{ margin: "32px 0" }} />
+          <Route
+            path="contribuer"
+            element={<ContributionPage />}
+          />
 
-      <ContributionForm />
+          <Route
+            path="gouvernance"
+            element={<GovernancePage />}
+          />
 
-      <hr style={{ margin: "32px 0" }} />
+          <Route
+            path="portefeuille"
+            element={<WalletPage />}
+          />
 
-      <GovernanceDashboard />
-    </main>
+          <Route
+            path="*"
+            element={<NotFoundPage />}
+          />
+        </Route>
+      </Routes>
+    </WalletProvider>
   );
 }

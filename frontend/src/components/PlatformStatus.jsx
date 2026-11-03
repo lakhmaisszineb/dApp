@@ -1,84 +1,152 @@
 import { useEffect, useState } from "react";
+
 import { readPlatformStatus } from "../services/contracts.js";
+
+import "../styles/project-pages.css";
 
 export default function PlatformStatus() {
   const [status, setStatus] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [refreshKey, setRefreshKey] = useState(0);
 
   useEffect(() => {
     let active = true;
 
-    async function load() {
-      setLoading(true);
-      setError("");
+    readPlatformStatus()
+      .then((result) => {
+        if (!active) return;
 
-      try {
-        const result = await readPlatformStatus();
+        setStatus(result);
+        setError("");
+      })
+      .catch(() => {
+        if (!active) return;
 
-        if (active) {
-          setStatus(result);
-        }
-      } catch (loadError) {
-        console.error("Lecture de la plateforme :", loadError);
-
-        if (active) {
-          setStatus(null);
-
-          setError(
-            "Impossible de lire la plateforme. Vérifie que le nœud " +
-            "Hardhat fonctionne et que les contrats sont déployés. " +
-            "Le détail est disponible dans la console du navigateur."
-          );
-        }
-      } finally {
+        setError(
+          "Les informations de la plateforme sont momentanément indisponibles."
+        );
+      })
+      .finally(() => {
         if (active) {
           setLoading(false);
         }
-      }
-    }
-
-    void load();
+      });
 
     return () => {
       active = false;
     };
-  }, [refreshKey]);
+  }, []);
+
+  async function refresh() {
+    setLoading(true);
+    setError("");
+
+    try {
+      const result = await readPlatformStatus();
+
+      setStatus(result);
+    } catch {
+      setStatus(null);
+
+      setError(
+        "Les informations de la plateforme sont momentanément indisponibles."
+      );
+    } finally {
+      setLoading(false);
+    }
+  }
 
   return (
-    <section>
-      <h2>État de la plateforme</h2>
+    <section
+      className="wallet-panel platform-panel"
+      aria-labelledby="platform-status-title"
+      aria-busy={loading}
+    >
+      <div className="wallet-panel-heading">
+        <div>
+          <p className="tiwizi-overline">
+            La plateforme
+          </p>
 
-      {loading && <p>Lecture des contrats…</p>}
+          <h2 id="platform-status-title">
+            État des services
+          </h2>
+        </div>
 
-      {!loading && error && <p role="alert">{error}</p>}
+        <span
+          className={
+            error
+              ? "platform-badge platform-badge--unavailable"
+              : status
+                ? "platform-badge"
+                : "platform-badge platform-badge--neutral"
+          }
+        >
+          {loading
+            ? "Vérification"
+            : error
+              ? "Indisponible"
+              : "Connectée"}
+        </span>
+      </div>
 
-      {!loading && status && (
+      {loading && (
+        <p role="status">
+          Actualisation des informations…
+        </p>
+      )}
+
+      {error && (
+        <p role="alert">
+          {error}
+        </p>
+      )}
+
+      {status && (
         <>
-          <p>✅ Contrats accessibles et correctement reliés.</p>
+          <p className="platform-description">
+            Les contrats de financement, de gouvernance
+            et de signature sont accessibles et reliés.
+          </p>
 
-          <dl>
-            <dt>Nombre de campagnes</dt>
-            <dd>{status.campaignCount}</dd>
+          <dl className="platform-metrics">
+            <div>
+              <dt>Campagnes créées</dt>
+              <dd>{status.campaignCount}</dd>
+            </div>
 
-            <dt>Nombre de propositions de gouvernance</dt>
-            <dd>{status.proposalCount}</dd>
+            <div>
+              <dt>Propositions de gouvernance</dt>
+              <dd>{status.proposalCount}</dd>
+            </div>
 
-            <dt>Nombre de transactions soumises au multisig</dt>
-            <dd>{status.transactionCount}</dd>
+            <div>
+              <dt>Opérations soumises au multisig</dt>
+              <dd>{status.transactionCount}</dd>
+            </div>
 
-            <dt>État des opérations de la plateforme</dt>
-            <dd>{status.paused ? "En pause" : "Non suspendues"}</dd>
+            <div>
+              <dt>Opérations de la plateforme</dt>
+
+              <dd className="platform-operation-state">
+                {status.paused
+                  ? "Suspendues"
+                  : "Actives"}
+              </dd>
+            </div>
           </dl>
         </>
       )}
 
       <button
+        type="button"
+        className="platform-refresh-button"
+        onClick={refresh}
         disabled={loading}
-        onClick={() => setRefreshKey((value) => value + 1)}
       >
-        {loading ? "Chargement…" : "Actualiser"}
+        {loading
+          ? "Actualisation…"
+          : "Actualiser les informations"}
       </button>
     </section>
   );

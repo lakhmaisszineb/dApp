@@ -1,0 +1,509 @@
+/* État de la plateforme */
+
+.platform-panel {
+  height: 100%;
+}
+
+.platform-description {
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.platform-badge {
+  display: inline-flex;
+  align-items: center;
+
+  flex-shrink: 0;
+  padding: 6px 12px;
+
+  color: #17513b;
+  background: #eaf6ef;
+  border-radius: 30px;
+
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+.platform-badge--neutral {
+  color: var(--blue-dark);
+  background: var(--blue-light);
+}
+
+.platform-badge--unavailable {
+  color: #8a3500;
+  background: #fff0df;
+}
+
+.platform-metrics {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+
+  margin: 24px 0;
+}
+
+.platform-metrics > div {
+  padding: 16px;
+
+  background: var(--background);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+}
+
+.platform-metrics dt {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+.platform-metrics dd {
+  margin: 7px 0 0;
+  color: var(--text);
+
+  font-size: 1.65rem;
+  font-weight: 750;
+}
+
+.platform-metrics .platform-operation-state {
+  font-size: 1.05rem;
+}
+
+.platform-panel .platform-refresh-button {
+  color: var(--blue-dark);
+  background: var(--blue-light);
+}
+
+.platform-panel .platform-refresh-button:hover:not(:disabled) {
+  background: #dfeaff;
+}
+
+/* Liste des projets */
+
+.projects-page-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 28px;
+
+  margin-bottom: 32px;
+}
+
+.projects-page-heading > div {
+  max-width: 730px;
+}
+
+.projects-page-heading > .button {
+  flex-shrink: 0;
+}
+
+.projects-page-heading p {
+  color: var(--muted);
+}
+
+.projects-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+
+  margin-bottom: 24px;
+}
+
+.projects-toolbar p {
+  margin: 0;
+  color: var(--muted);
+}
+
+.projects-directory-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 24px;
+}
+
+.project-card {
+  display: flex;
+  flex-direction: column;
+
+  min-width: 0;
+  padding: 0;
+  margin: 0;
+
+  overflow: hidden;
+
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+
+  box-shadow: 0 8px 30px rgb(23 32 51 / 4%);
+}
+
+.project-card-visual {
+  display: block;
+  height: 190px;
+
+  overflow: hidden;
+  text-decoration: none;
+
+  background: var(--blue-light);
+}
+
+.project-card-visual img {
+  display: block;
+
+  width: 100%;
+  height: 100%;
+
+  object-fit: cover;
+}
+
+.project-image-placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+
+  height: 100%;
+  padding: 20px;
+
+  color: var(--blue-dark);
+
+  background:
+    radial-gradient(
+      circle at 85% 20%,
+      #ffd43b 0 18px,
+      transparent 19px
+    ),
+    linear-gradient(135deg, #edf3ff, #dce8ff);
+}
+
+.project-image-placeholder span {
+  font-size: 2rem;
+  font-weight: 850;
+  letter-spacing: -0.06em;
+}
+
+.project-image-placeholder p {
+  margin: 8px 0 0;
+  font-size: 0.85rem;
+}
+
+.project-card-content {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+
+  flex: 1;
+  padding: 24px;
+}
+
+.project-card-labels {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+
+  width: 100%;
+  margin-bottom: 18px;
+}
+
+.project-category {
+  color: var(--blue);
+  font-size: 0.75rem;
+  font-weight: 750;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.project-frozen-label {
+  padding: 4px 10px;
+
+  color: #8a3500;
+  background: #fff0df;
+  border-radius: 30px;
+
+  font-size: 0.75rem;
+}
+
+.project-card-content h2 {
+  margin-bottom: 12px;
+  font-size: 1.3rem;
+}
+
+.project-card-content h2 a {
+  color: var(--text);
+  text-decoration: none;
+}
+
+.project-card-content h2 a:hover {
+  color: var(--blue);
+}
+
+.project-card-summary {
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.project-status-label {
+  color: var(--blue-dark);
+  font-size: 0.8rem;
+  font-weight: 650;
+}
+
+.project-card-financing {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+
+  margin-top: auto;
+  padding-top: 20px;
+}
+
+.project-card-financing strong {
+  font-size: 1.5rem;
+  letter-spacing: -0.04em;
+}
+
+.project-card-financing span {
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+.project-card progress,
+.project-funding-panel progress {
+  appearance: none;
+
+  width: 100%;
+  height: 8px;
+  margin: 18px 0;
+
+  overflow: hidden;
+  border: none;
+  border-radius: 20px;
+
+  background: #e9eef7;
+}
+
+.project-card progress::-webkit-progress-bar,
+.project-funding-panel progress::-webkit-progress-bar {
+  background: #e9eef7;
+  border-radius: 20px;
+}
+
+.project-card progress::-webkit-progress-value,
+.project-funding-panel progress::-webkit-progress-value {
+  background: var(--orange);
+  border-radius: 20px;
+}
+
+.project-card progress::-moz-progress-bar,
+.project-funding-panel progress::-moz-progress-bar {
+  background: var(--orange);
+  border-radius: 20px;
+}
+
+.project-card-deadline {
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+.project-card-content > .button {
+  width: 100%;
+  margin-top: 10px;
+}
+
+.projects-pagination {
+  display: flex;
+  justify-content: center;
+  margin-top: 32px;
+}
+
+.project-empty-state {
+  padding: 36px;
+  background: var(--surface);
+}
+
+/* Fiche individuelle */
+
+.project-back-link {
+  display: inline-block;
+  margin-bottom: 28px;
+  font-weight: 650;
+}
+
+.project-detail-heading {
+  max-width: 900px;
+  margin-bottom: 36px;
+}
+
+.project-detail-heading > p:last-child {
+  color: var(--muted);
+  font-size: 1.1rem;
+}
+
+.project-details-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.6fr) minmax(300px, 1fr);
+  align-items: start;
+  gap: 28px;
+}
+
+.project-story {
+  min-width: 0;
+}
+
+.project-cover-image {
+  display: block;
+
+  width: 100%;
+  max-height: 480px;
+
+  object-fit: cover;
+  border-radius: 20px;
+}
+
+.project-story-section {
+  padding: 28px;
+  margin: 24px 0 0;
+
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 18px;
+}
+
+.project-story-section h2 {
+  margin-bottom: 20px;
+}
+
+.project-long-text {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.project-usage-item + .project-usage-item {
+  padding-top: 16px;
+  margin-top: 20px;
+  border-top: 1px solid var(--border);
+}
+
+.project-usage-item h3 {
+  margin-top: 0;
+}
+
+.project-funding-panel {
+  padding: 28px;
+
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+
+  box-shadow: 0 8px 30px rgb(23 32 51 / 4%);
+}
+
+.project-funding-panel > h2 {
+  margin-top: 18px;
+  font-size: 2.4rem;
+  letter-spacing: -0.05em;
+}
+
+.project-funding-panel > p {
+  color: var(--muted);
+}
+
+.project-funding-facts > div {
+  padding: 14px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.project-funding-facts dt {
+  margin-top: 0;
+}
+
+.project-funding-facts dd {
+  font-size: 0.95rem;
+}
+
+.project-funding-panel form {
+  padding: 0;
+  margin-bottom: 0;
+
+  background: transparent;
+  border: 0;
+}
+
+.project-funding-panel form button {
+  width: 100%;
+}
+
+.project-connected-address,
+.project-transaction-reference {
+  margin-top: 16px;
+
+  color: var(--muted);
+  font-size: 0.8rem;
+
+  overflow-wrap: anywhere;
+}
+
+.project-information-note {
+  padding: 16px;
+  margin-top: 20px;
+
+  color: #794000;
+  background: #fff7e8;
+  border: 1px solid #f0deb3;
+  border-radius: 12px;
+}
+
+.project-transparency > div {
+  margin-bottom: 18px;
+}
+
+.project-transparency dt {
+  margin-top: 0;
+}
+
+.project-transparency dd {
+  font-size: 0.9rem;
+  overflow-wrap: anywhere;
+}
+
+.project-small-note {
+  margin-top: 16px;
+  margin-bottom: 0;
+
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+@media (max-width: 1000px) {
+  .projects-directory-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .project-details-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 640px) {
+  .projects-page-heading {
+    flex-direction: column;
+  }
+
+  .projects-directory-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .platform-metrics {
+    grid-template-columns: 1fr;
+  }
+
+  .project-story-section,
+  .project-funding-panel {
+    padding: 20px;
+  }
+
+  .projects-toolbar {
+    align-items: flex-start;
+  }
+}
