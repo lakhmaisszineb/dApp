@@ -1,0 +1,284 @@
+
+/* ============================================================
+   TIWIZI — Demandes de retrait multisignature
+   ============================================================ */
+
+.pwa-section {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  margin: 28px 0;
+  padding: 25px;
+  border: 1px solid #e0eaf6;
+  border-radius: 18px;
+  background: #ffffff;
+  color: #254261;
+}
+
+.pwa-heading,
+.pwa-heading-title,
+.pwa-info span,
+.pwa-existing,
+.pwa-primary {
+  display: flex;
+  align-items: center;
+}
+
+.pwa-heading {
+  justify-content: space-between;
+  gap: 15px;
+}
+
+.pwa-heading-title {
+  gap: 14px;
+}
+
+.pwa-heading-icon {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 47px;
+  height: 47px;
+  border-radius: 13px;
+  background: #eaf3ff;
+  color: #276fba;
+}
+
+.pwa-heading h2 {
+  margin: 0 0 7px;
+  font-size: 21px;
+  color: #223e5f;
+}
+
+.pwa-heading p {
+  margin: 0;
+  color: #8595a7;
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.pwa-refresh {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 38px;
+  height: 38px;
+  border: 1px solid #dde8f5;
+  border-radius: 10px;
+  background: #f5f9ff;
+  color: #3974b3;
+  cursor: pointer;
+}
+
+.pwa-refresh:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.pwa-list {
+  display: grid;
+  gap: 16px;
+}
+
+.pwa-card {
+  border: 1px solid #e0eaf4;
+  border-radius: 15px;
+  padding: 20px;
+  background: #fbfdff;
+}
+
+.pwa-card-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+.pwa-eyebrow {
+  display: block;
+  margin-bottom: 7px;
+  color: #4a83bd;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.9px;
+}
+
+.pwa-card h3 {
+  margin: 0;
+  color: #244566;
+  font-size: 19px;
+}
+
+.pwa-status {
+  padding: 8px 11px;
+  border-radius: 999px;
+  background: #e7f1ff;
+  color: #2c6aaa;
+  font-size: 11px;
+  font-weight: 750;
+}
+
+.pwa-metrics {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 13px;
+  margin-bottom: 20px;
+}
+
+.pwa-metrics div {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+}
+
+.pwa-metrics span {
+  color: #8797a9;
+  font-size: 11px;
+}
+
+.pwa-metrics strong {
+  color: #274b70;
+  font-size: 17px;
+  overflow-wrap: anywhere;
+}
+
+.pwa-info {
+  display: grid;
+  gap: 11px;
+  padding: 14px;
+  margin-bottom: 18px;
+  border-radius: 10px;
+  background: #eef5fe;
+}
+
+.pwa-info span {
+  gap: 9px;
+  color: #47749e;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.pwa-primary {
+  justify-content: center;
+  gap: 9px;
+  width: 100%;
+  min-height: 44px;
+  border: 0;
+  border-radius: 10px;
+  background: #176bd0;
+  color: white;
+  font-size: 12px;
+  font-weight: 750;
+  cursor: pointer;
+}
+
+.pwa-primary:hover:not(:disabled) {
+  background: #1058b3;
+}
+
+.pwa-primary:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.pwa-existing {
+  align-items: flex-start;
+  gap: 12px;
+  padding: 15px;
+  border-radius: 11px;
+  background: #e8f5ee;
+  color: #287d55;
+}
+
+.pwa-existing strong {
+  font-size: 12px;
+}
+
+.pwa-existing p {
+  margin: 7px 0 12px;
+  font-size: 11px;
+  color: #59846b;
+  line-height: 1.6;
+}
+
+.pwa-existing a {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  color: #2671aa;
+  text-decoration: none;
+  font-size: 11px;
+  font-weight: 750;
+}
+
+.pwa-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 11px;
+  padding: 35px 20px;
+  border: 1px dashed #cbdceb;
+  border-radius: 12px;
+  color: #3f79ac;
+  text-align: center;
+}
+
+.pwa-empty strong {
+  color: #365575;
+  font-size: 14px;
+}
+
+.pwa-empty p {
+  max-width: 420px;
+  margin: 0;
+  color: #8395a9;
+  font-size: 12px;
+  line-height: 1.7;
+}
+
+.pwa-error,
+.pwa-success,
+.pwa-feedback {
+  padding: 13px;
+  border-radius: 10px;
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.pwa-error,
+.pwa-success {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+}
+
+.pwa-error {
+  color: #a43b3b;
+  background: #fff0ee;
+}
+
+.pwa-success {
+  color: #23734c;
+  background: #e7f6ed;
+}
+
+.pwa-feedback {
+  color: #4779aa;
+  background: #eef5ff;
+}
+
+@media (max-width: 720px) {
+  .pwa-section {
+    padding: 17px;
+  }
+
+  .pwa-heading h2 {
+    font-size: 18px;
+  }
+
+  .pwa-metrics {
+    grid-template-columns: 1fr 1fr;
+  }
+}

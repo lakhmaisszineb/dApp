@@ -1,0 +1,466 @@
+
+/* ======================================================
+   TIWIZI — Connexion MetaMask
+   Thème : bleu profond, bleu clair, blanc
+   Icônes : Lucide SVG
+   ====================================================== */
+
+.tw-auth-page {
+  min-height: calc(100vh - 150px);
+  padding: 60px 24px 85px;
+  background:
+    radial-gradient(
+      circle at 12% 14%,
+      #e7f1ff 0,
+      transparent 34%
+    ),
+    linear-gradient(
+      130deg,
+      #f8fbff 0%,
+      #f0f5fc 52%,
+      #ffffff 100%
+    );
+  color: #203753;
+}
+
+.tw-auth-page * {
+  box-sizing: border-box;
+}
+
+.tw-auth-container {
+  max-width: 1160px;
+  margin: 0 auto;
+  display: grid;
+  grid-template-columns:
+    minmax(0, 1.1fr)
+    minmax(350px, 0.9fr);
+  gap: clamp(38px, 6vw, 100px);
+  align-items: center;
+}
+
+.tw-auth-intro {
+  min-width: 0;
+}
+
+.tw-auth-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  color: #537394;
+  font-size: 13px;
+  font-weight: 650;
+  text-decoration: none;
+  margin-bottom: 58px;
+}
+
+.tw-auth-back:hover {
+  color: #215fa7;
+}
+
+.tw-auth-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  padding: 9px 13px;
+  margin-bottom: 24px;
+  border-radius: 999px;
+  background: #e5eefb;
+  color: #2763a7;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 1.2px;
+}
+
+.tw-auth-intro h1 {
+  max-width: 570px;
+  margin: 0 0 22px;
+  font-size: clamp(35px, 4.2vw, 57px);
+  line-height: 1.12;
+  letter-spacing: -1.8px;
+  font-weight: 800;
+  color: #203b5e;
+}
+
+.tw-auth-intro h1 span {
+  color: #2573c9;
+}
+
+.tw-auth-description {
+  max-width: 490px;
+  margin: 0 0 35px;
+  color: #687f98;
+  font-size: 15px;
+  line-height: 1.85;
+}
+
+.tw-auth-features {
+  display: grid;
+  gap: 22px;
+}
+
+.tw-auth-feature {
+  display: flex;
+  align-items: flex-start;
+  gap: 15px;
+}
+
+.tw-auth-feature-icon {
+  width: 45px;
+  height: 45px;
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  border: 1px solid #dce9f8;
+  border-radius: 13px;
+  background: white;
+  color: #2e73b7;
+}
+
+.tw-auth-feature strong {
+  display: block;
+  margin-bottom: 5px;
+  color: #274464;
+  font-size: 14px;
+}
+
+.tw-auth-feature p {
+  margin: 0;
+  color: #788ca2;
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.tw-auth-trust {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin-top: 45px;
+  max-width: 490px;
+  font-size: 12px;
+  color: #617c96;
+  line-height: 1.65;
+}
+
+.tw-auth-trust svg {
+  flex-shrink: 0;
+  color: #2b8a6a;
+}
+
+/* Carte MetaMask */
+
+.tw-auth-card {
+  background: white;
+  border: 1px solid #e4ebf5;
+  border-radius: 24px;
+  padding: clamp(25px, 3vw, 42px);
+  box-shadow:
+    0 12px 35px rgba(36, 63, 96, 0.05),
+    0 25px 75px rgba(36, 63, 96, 0.07);
+}
+
+.tw-auth-card-icon {
+  display: grid;
+  place-items: center;
+  width: 60px;
+  height: 60px;
+  margin-bottom: 25px;
+  border-radius: 18px;
+  color: #256dbb;
+  background: #e8f1ff;
+}
+
+.tw-auth-overline {
+  display: block;
+  margin-bottom: 12px;
+  color: #5384b4;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 1.4px;
+}
+
+.tw-auth-card-header h2 {
+  margin: 0 0 12px;
+  font-size: clamp(24px, 2.5vw, 30px);
+  line-height: 1.25;
+  color: #213c5a;
+}
+
+.tw-auth-card-header p {
+  margin: 0;
+  color: #7a8ba0;
+  font-size: 13px;
+  line-height: 1.8;
+}
+
+.tw-auth-wallet-option {
+  display: flex;
+  align-items: center;
+  gap: 13px;
+  padding: 17px;
+  margin: 30px 0 18px;
+  border: 1px solid #d6e4f5;
+  border-radius: 14px;
+  background: #f8fbff;
+}
+
+.tw-auth-wallet-symbol {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 46px;
+  height: 46px;
+  border-radius: 12px;
+  background: #e8f0fa;
+  color: #2d72b7;
+}
+
+.tw-auth-wallet-text {
+  flex: 1;
+  min-width: 0;
+}
+
+.tw-auth-wallet-text strong,
+.tw-auth-wallet-text span {
+  display: block;
+}
+
+.tw-auth-wallet-text strong {
+  margin-bottom: 4px;
+  font-size: 14px;
+  color: #2b4562;
+}
+
+.tw-auth-wallet-text span {
+  color: #8293a8;
+  font-size: 12px;
+}
+
+.tw-auth-wallet-available {
+  color: #278b66;
+}
+
+.tw-auth-primary {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  width: 100%;
+  min-height: 53px;
+  padding: 13px 18px;
+  border: none;
+  border-radius: 12px;
+  background: #2169c1;
+  color: white;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  transition:
+    background 0.2s,
+    transform 0.2s;
+}
+
+.tw-auth-primary:hover:not(:disabled) {
+  background: #1957a3;
+  transform: translateY(-1px);
+}
+
+.tw-auth-primary:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+}
+
+.tw-auth-divider {
+  position: relative;
+  display: flex;
+  justify-content: center;
+  margin: 25px 0;
+}
+
+.tw-auth-divider::before {
+  position: absolute;
+  content: "";
+  top: 50%;
+  width: 100%;
+  height: 1px;
+  background: #e8edf4;
+}
+
+.tw-auth-divider span {
+  position: relative;
+  z-index: 1;
+  padding: 0 14px;
+  background: white;
+  font-size: 11px;
+  font-weight: 700;
+  color: #9aa8b8;
+}
+
+.tw-auth-explore {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 11px;
+  padding: 13px;
+  min-height: 51px;
+  border: 1px solid #dce6f2;
+  border-radius: 12px;
+  color: #326da8;
+  font-weight: 700;
+  font-size: 13px;
+  text-decoration: none;
+}
+
+.tw-auth-explore:hover {
+  background: #f0f6fd;
+}
+
+.tw-auth-bottom {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding-top: 23px;
+  margin-top: 25px;
+  border-top: 1px solid #eef2f7;
+  color: #8192a6;
+}
+
+.tw-auth-bottom svg {
+  flex-shrink: 0;
+  color: #358d70;
+}
+
+.tw-auth-bottom p {
+  margin: 0;
+  font-size: 11px;
+  line-height: 1.6;
+}
+
+.tw-auth-error,
+.tw-auth-warning,
+.tw-auth-network-warning,
+.tw-auth-success {
+  display: flex;
+  align-items: flex-start;
+  gap: 11px;
+  margin-bottom: 16px;
+  padding: 13px;
+  border-radius: 11px;
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.tw-auth-error {
+  background: #fff0ef;
+  color: #a63e3e;
+}
+
+.tw-auth-warning,
+.tw-auth-network-warning {
+  background: #fff6e8;
+  color: #966221;
+}
+
+.tw-auth-network-warning strong {
+  display: block;
+  margin-bottom: 4px;
+}
+
+.tw-auth-network-warning p,
+.tw-auth-warning p {
+  margin: 0;
+}
+
+.tw-auth-success {
+  background: #eaf6f0;
+  color: #237d54;
+}
+
+.tw-auth-error svg,
+.tw-auth-warning svg,
+.tw-auth-network-warning svg,
+.tw-auth-success svg {
+  flex-shrink: 0;
+}
+
+.tw-auth-install {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  margin-top: 13px;
+  padding: 11px;
+  color: #256caf;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.tw-auth-spin {
+  animation: tw-auth-rotate 1s linear infinite;
+}
+
+@keyframes tw-auth-rotate {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Responsive */
+
+@media (max-width: 850px) {
+  .tw-auth-page {
+    padding: 35px 18px 65px;
+  }
+
+  .tw-auth-container {
+    grid-template-columns: 1fr;
+    max-width: 630px;
+    gap: 35px;
+  }
+
+  .tw-auth-back {
+    margin-bottom: 30px;
+  }
+
+  .tw-auth-intro h1 {
+    max-width: 100%;
+  }
+
+  .tw-auth-trust {
+    margin-top: 25px;
+  }
+}
+
+@media (max-width: 480px) {
+  .tw-auth-page {
+    padding: 20px 12px 45px;
+  }
+
+  .tw-auth-card {
+    padding: 23px 18px;
+    border-radius: 18px;
+  }
+
+  .tw-auth-intro h1 {
+    font-size: 34px;
+    letter-spacing: -0.9px;
+  }
+
+  .tw-auth-feature {
+    gap: 11px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tw-auth-primary {
+    transition: none;
+  }
+
+  .tw-auth-primary:hover:not(:disabled) {
+    transform: none;
+  }
+
+  .tw-auth-spin {
+    animation: none;
+  }
+}

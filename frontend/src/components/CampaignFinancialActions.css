@@ -1,0 +1,157 @@
+
+/* ======================================================
+   TIWIZI — Actions financières des campagnes
+   ====================================================== */
+
+.tfa-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 13px;
+  margin-top: 17px;
+  padding: 16px;
+  background: #f5f9ff;
+  border: 1px solid #dce9f8;
+  border-radius: 13px;
+}
+
+.tfa-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.tfa-heading > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: #2d629e;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.tfa-heading > button {
+  width: 29px;
+  height: 29px;
+  display: grid;
+  place-items: center;
+  border: 1px solid #d9e6f5;
+  border-radius: 8px;
+  background: #fff;
+  color: #467cb0;
+  cursor: pointer;
+}
+
+.tfa-heading > button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.tfa-muted {
+  margin: 0;
+  color: #7389a2;
+  font-size: 12px;
+  line-height: 1.7;
+}
+
+.tfa-refund-amount {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.tfa-refund-amount span {
+  color: #788ba3;
+  font-size: 11px;
+}
+
+.tfa-refund-amount strong {
+  color: #23578f;
+  font-size: 20px;
+  overflow-wrap: anywhere;
+}
+
+.tfa-primary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  width: 100%;
+  min-height: 42px;
+  padding: 11px 15px;
+  background: #1969c7;
+  border: none;
+  border-radius: 10px;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 750;
+  cursor: pointer;
+}
+
+.tfa-primary:hover:not(:disabled) {
+  background: #1056ad;
+}
+
+.tfa-primary:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.tfa-information {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  padding: 12px;
+  border-radius: 10px;
+  background: #eaf3ff;
+  color: #3168a3;
+}
+
+.tfa-information strong {
+  display: block;
+  margin-bottom: 9px;
+  font-size: 12px;
+}
+
+.tfa-information p {
+  margin: 5px 0;
+  color: #5c7795;
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.tfa-error,
+.tfa-success {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  padding: 11px 12px;
+  border-radius: 10px;
+  font-size: 12px;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+
+.tfa-error {
+  background: #fff0ef;
+  color: #ad4545;
+}
+
+.tfa-success {
+  background: #e8f6ef;
+  color: #28764d;
+}
+
+.tfa-tx {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0;
+  color: #73879e;
+  font-size: 11px;
+}
+
+.tfa-tx code {
+  color: #2f6faf;
+  font-size: 11px;
+}
