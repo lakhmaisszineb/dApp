@@ -1,0 +1,18 @@
+Dans la racine:
+Lancer la blockchain Hardhat en local
+npx hardhat node
+Déployer les smart contracts
+npx hardhat run scripts/deploy-local.js --network localhost
+l interface 
+cd frontend
+npm run dev
+puis accéder à :http://localhost:5173/
+
+lancer le backend
+cd backend
+npm run
+
+
+
+Vérifier MetaMask
+Assure-toi que MetaMask est connecté au réseau local Hardhat.

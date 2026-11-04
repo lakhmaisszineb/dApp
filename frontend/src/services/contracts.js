@@ -1,3 +1,4 @@
+
 import {
   BrowserProvider,
   Contract,
@@ -7,70 +8,130 @@ import {
   formatUnits,
   parseEther,
 } from "ethers";
+
 import tokenArtifact from "../contracts/CFDToken.json";
 import deployment from "../contracts/deployment.json";
 import crowdfundingArtifact from "../contracts/Crowdfunding.json";
 import governanceArtifact from "../contracts/Governance.json";
 import multiSigArtifact from "../contracts/MultiSig.json";
 
-// Lecture via le nœud local : aucun compte connecté n'est nécessaire.
-// Les opérations d'écriture utiliseront MetaMask dans l'étape suivante.
+// ============================================================
+// TIWIZI - SERVICE DE CONNEXION AUX SMART CONTRACTS
+// Compatible avec le circuit breaker et les échéances compensées
+// ============================================================
+
+// Fournisseur RPC pour les lectures sans portefeuille.
 const provider = new JsonRpcProvider(
   import.meta.env.VITE_RPC_URL || "http://127.0.0.1:8545"
 );
 
-export async function getReadContracts() {
-  const network = await provider.getNetwork();
+// ------------------------------------------------------------
+// OUTILS INTERNES
+// ------------------------------------------------------------
 
-  if (network.chainId !== BigInt(deployment.chainId)) {
+// Vérifier qu'un identifiant de campagne est valide.
+function parseCampaignId(value) {
+  const text = String(value).trim();
+
+  if (!/^[1-9]\d*$/.test(text)) {
     throw new Error(
-      "Le réseau RPC ne correspond pas au réseau du déploiement."
+      "L'identifiant de campagne doit être un entier supérieur à zéro."
     );
   }
 
+  return BigInt(text);
+}
+
+// Récupérer le fournisseur MetaMask.
+function getMetaMaskProvider() {
+  const ethereum = window.ethereum;
+
+  if (Array.isArray(ethereum?.providers)) {
+    return ethereum.providers.find(
+      (item) => item.isMetaMask
+    );
+  }
+
+  return ethereum?.isMetaMask
+    ? ethereum
+    : undefined;
+}
+
+// Vérifier que les contrats existent sur le réseau.
+async function verifyContracts(providerToCheck) {
   const addresses = [
     deployment.crowdfunding,
     deployment.governance,
     deployment.multiSig,
   ];
 
-  // Une adresse peut être correcte dans le fichier alors que
-  // le nœud a été redémarré et ne contient plus les contrats.
   const codes = await Promise.all(
-    addresses.map((address) => provider.getCode(address))
+    addresses.map((address) =>
+      providerToCheck.getCode(address)
+    )
   );
 
   if (codes.some((code) => code === "0x")) {
     throw new Error(
-      "Un contrat est absent du réseau local. " +
+      "Un ou plusieurs smart contracts sont absents du réseau. " +
       "Vérifie le nœud Hardhat et le dernier déploiement."
     );
   }
+}
 
+// Construire les instances des contrats.
+function buildContracts(runner) {
   return {
     crowdfunding: new Contract(
       deployment.crowdfunding,
       crowdfundingArtifact.abi,
-      provider
+      runner
     ),
 
     governance: new Contract(
       deployment.governance,
       governanceArtifact.abi,
-      provider
+      runner
     ),
 
     multiSig: new Contract(
       deployment.multiSig,
       multiSigArtifact.abi,
-      provider
+      runner
     ),
   };
 }
 
+// ============================================================
+// 1. LECTURE DES SMART CONTRACTS
+// ============================================================
+
+export async function getReadContracts() {
+  const network = await provider.getNetwork();
+
+  if (
+    network.chainId !== BigInt(deployment.chainId)
+  ) {
+    throw new Error(
+      "Le réseau RPC ne correspond pas au réseau du déploiement."
+    );
+  }
+
+  await verifyContracts(provider);
+
+  return buildContracts(provider);
+}
+
+// ============================================================
+// 2. ÉTAT GLOBAL DE LA PLATEFORME
+// ============================================================
+
 export async function readPlatformStatus() {
-  const { crowdfunding, governance, multiSig } =
-    await getReadContracts();
+  const {
+    crowdfunding,
+    governance,
+    multiSig,
+  } = await getReadContracts();
 
   const [
     campaignCount,
@@ -84,7 +145,11 @@ export async function readPlatformStatus() {
     crowdfunding.campaignCount(),
     governance.proposalCount(),
     multiSig.transactionCount(),
-    crowdfunding.paused(),
+
+    // Nouveau circuit breaker :
+    // true uniquement si la pause est réellement active.
+    crowdfunding.emergencyPauseActive(),
+
     crowdfunding.governance(),
     crowdfunding.multiSig(),
     governance.crowdfunding(),
@@ -94,13 +159,22 @@ export async function readPlatformStatus() {
     first.toLowerCase() === second.toLowerCase();
 
   const correctlyLinked =
-    sameAddress(governanceAddress, deployment.governance) &&
-    sameAddress(multiSigAddress, deployment.multiSig) &&
-    sameAddress(crowdfundingAddress, deployment.crowdfunding);
+    sameAddress(
+      governanceAddress,
+      deployment.governance
+    ) &&
+    sameAddress(
+      multiSigAddress,
+      deployment.multiSig
+    ) &&
+    sameAddress(
+      crowdfundingAddress,
+      deployment.crowdfunding
+    );
 
   if (!correctlyLinked) {
     throw new Error(
-      "Les liens entre les contrats ne correspondent pas au déploiement."
+      "Les liens entre les smart contracts ne correspondent pas au déploiement."
     );
   }
 
@@ -111,45 +185,30 @@ export async function readPlatformStatus() {
     paused,
   };
 }
-function parseCampaignId(value) {
-  const text = String(value).trim();
 
-  if (!/^[1-9]\d*$/.test(text)) {
-    throw new Error(
-      "L'identifiant de campagne doit être un entier supérieur à zéro."
-    );
-  }
+// ============================================================
+// 3. CONNEXION METAMASK POUR LES TRANSACTIONS
+// ============================================================
 
-  return BigInt(text);
-}
-
-function getMetaMaskProvider() {
-  const ethereum = window.ethereum;
-
-  if (Array.isArray(ethereum?.providers)) {
-    return ethereum.providers.find((item) => item.isMetaMask);
-  }
-
-  return ethereum?.isMetaMask ? ethereum : undefined;
-}
-
-/**
- * Préparer les contrats liés au compte MetaMask.
- * Cette fonction sera réutilisée pour les votes.
- */
 export async function getWriteContracts() {
   const wallet = getMetaMaskProvider();
 
   if (!wallet) {
-    throw new Error("MetaMask n'est pas disponible.");
+    throw new Error(
+      "MetaMask n'est pas disponible."
+    );
   }
 
   const chainId = await wallet.request({
     method: "eth_chainId",
   });
 
-  if (BigInt(chainId) !== BigInt(deployment.chainId)) {
-    throw new Error("Sélectionne le réseau Hardhat dans MetaMask.");
+  if (
+    BigInt(chainId) !== BigInt(deployment.chainId)
+  ) {
+    throw new Error(
+      "Sélectionne le bon réseau Hardhat dans MetaMask."
+    );
   }
 
   const accounts = await wallet.request({
@@ -157,80 +216,87 @@ export async function getWriteContracts() {
   });
 
   if (!accounts.length) {
-    throw new Error("Connecte d'abord ton compte avec le bouton MetaMask.");
+    throw new Error(
+      "Connecte d'abord ton compte MetaMask."
+    );
   }
 
   const walletProvider = new BrowserProvider(wallet);
-  const signer = await walletProvider.getSigner(accounts[0]);
 
-  // Vérifier les contrats sur le réseau réellement utilisé par MetaMask.
-  const addresses = [
-    deployment.crowdfunding,
-    deployment.governance,
-    deployment.multiSig,
-  ];
+  const signer =
+    await walletProvider.getSigner(accounts[0]);
 
-  const codes = await Promise.all(
-    addresses.map((address) => walletProvider.getCode(address))
-  );
-
-  if (codes.some((code) => code === "0x")) {
-    throw new Error(
-      "Contrats introuvables sur le réseau utilisé par MetaMask."
-    );
-  }
+  await verifyContracts(walletProvider);
 
   return {
     signer,
     provider: walletProvider,
-
-    crowdfunding: new Contract(
-      deployment.crowdfunding,
-      crowdfundingArtifact.abi,
-      signer
-    ),
-
-    governance: new Contract(
-      deployment.governance,
-      governanceArtifact.abi,
-      signer
-    ),
-
-    multiSig: new Contract(
-      deployment.multiSig,
-      multiSigArtifact.abi,
-      signer
-    ),
+    ...buildContracts(signer),
   };
 }
 
-/**
- * Lire une campagne pour préparer une contribution.
- */
+// ============================================================
+// 4. LECTURE D'UNE CAMPAGNE AVANT CONTRIBUTION
+// ============================================================
+
 export async function readCampaignForContribution(value) {
   const campaignId = parseCampaignId(value);
-  const { crowdfunding } = await getReadContracts();
 
-  // Utiliser le même bloc pour les informations financières.
+  const { crowdfunding } =
+    await getReadContracts();
+
+  // Utiliser le même bloc pour éviter des lectures
+  // incohérentes si l'état change entre deux appels.
   const block = await provider.getBlock("latest");
 
   if (!block) {
-    throw new Error("Impossible de lire le dernier bloc.");
+    throw new Error(
+      "Impossible de lire le dernier bloc."
+    );
   }
 
-  const overrides = { blockTag: block.number };
+  const overrides = {
+    blockTag: block.number,
+  };
 
-  const [campaign, paused, rate] = await Promise.all([
-    crowdfunding.campaigns(campaignId, overrides),
-    crowdfunding.paused(overrides),
+  const [
+    campaign,
+    paused,
+    rate,
+    effectiveTime,
+    effectiveDeadline,
+  ] = await Promise.all([
+    crowdfunding.campaigns(
+      campaignId,
+      overrides
+    ),
+
+    // La pause est-elle réellement active ?
+    crowdfunding.emergencyPauseActive(overrides),
+
     crowdfunding.CFD_RATE(overrides),
+
+    // Horloge logique du circuit breaker.
+    crowdfunding.effectiveTime(overrides),
+
+    // Date réelle avec compensation.
+    crowdfunding.effectiveDeadline(
+      campaignId,
+      overrides
+    ),
   ]);
 
   if (campaign.creator === ZeroAddress) {
-    throw new Error("Cette campagne n'existe pas.");
+    throw new Error(
+      "Cette campagne n'existe pas."
+    );
   }
 
-  const ended = BigInt(block.timestamp) >= campaign.deadline;
+  // Important :
+  // campaign.deadline est exprimée dans
+  // l'horloge effective du contrat.
+  const ended =
+    effectiveTime >= campaign.deadline;
 
   let displayedStatus;
 
@@ -250,14 +316,24 @@ export async function readCampaignForContribution(value) {
 
   return {
     id: campaignId.toString(),
+
     goal: formatEther(campaign.goal),
-    totalRaised: formatEther(campaign.totalRaised),
+
+    totalRaised: formatEther(
+      campaign.totalRaised
+    ),
+
+    // Date affichée : échéance compensée.
     deadline: new Date(
-      Number(campaign.deadline) * 1000
+      Number(effectiveDeadline) * 1000
     ).toLocaleString("fr-FR"),
+
     status: displayedStatus,
+
     frozen: campaign.isFrozen,
+
     paused,
+
     rate: rate.toString(),
 
     canContribute:
@@ -268,18 +344,22 @@ export async function readCampaignForContribution(value) {
   };
 }
 
-/**
- * Envoyer une contribution.
- * La quantité de CFD est calculée par Crowdfunding.
- */
+// ============================================================
+// 5. ENVOI D'UNE CONTRIBUTION EN ETH
+// ============================================================
+
 export async function contributeToCampaign(
   campaignIdValue,
   amountValue,
   onSubmitted
 ) {
-  const campaignId = parseCampaignId(campaignIdValue);
+  const campaignId =
+    parseCampaignId(campaignIdValue);
+
   const text = String(amountValue).trim();
 
+  // Accepter un montant positif en ETH
+  // avec au maximum 18 décimales.
   if (!/^\d+(\.\d{1,18})?$/.test(text)) {
     throw new Error(
       "Indique un montant en ETH avec un point et au maximum 18 décimales."
@@ -289,51 +369,114 @@ export async function contributeToCampaign(
   const amount = parseEther(text);
 
   if (amount <= 0n) {
-    throw new Error("Le montant doit être supérieur à zéro.");
+    throw new Error(
+      "Le montant doit être supérieur à zéro."
+    );
   }
 
-  const { crowdfunding, signer, provider: walletProvider } =
-    await getWriteContracts();
+  const {
+    crowdfunding,
+    signer,
+    provider: walletProvider,
+  } = await getWriteContracts();
 
-  const block = await walletProvider.getBlock("latest");
+  // Lecture cohérente de l'état avant contribution.
+  const block = await walletProvider.getBlock(
+    "latest"
+  );
 
   if (!block) {
-    throw new Error("Impossible de lire le réseau MetaMask.");
+    throw new Error(
+      "Impossible de lire le réseau MetaMask."
+    );
   }
 
-  const [campaign, paused] = await Promise.all([
-    crowdfunding.campaigns(campaignId),
-    crowdfunding.paused(),
+  const overrides = {
+    blockTag: block.number,
+  };
+
+  const [
+    campaign,
+    paused,
+    effectiveTime,
+  ] = await Promise.all([
+    crowdfunding.campaigns(
+      campaignId,
+      overrides
+    ),
+
+    crowdfunding.emergencyPauseActive(
+      overrides
+    ),
+
+    crowdfunding.effectiveTime(
+      overrides
+    ),
   ]);
 
   if (campaign.creator === ZeroAddress) {
-    throw new Error("Cette campagne n'existe pas.");
+    throw new Error(
+      "Cette campagne n'existe pas."
+    );
   }
+
+  // Utiliser l'horloge effective :
+  // les pauses ne pénalisent pas les campagnes.
+  const ended =
+    effectiveTime >= campaign.deadline;
 
   if (
     campaign.status !== 0n ||
-    BigInt(block.timestamp) >= campaign.deadline
+    ended
   ) {
-    throw new Error("La campagne n'accepte plus de contributions.");
+    throw new Error(
+      "La campagne n'accepte plus de contributions."
+    );
   }
 
-  if (paused || campaign.isFrozen) {
-    throw new Error("Les contributions sont suspendues.");
+  // Refuser une contribution si :
+  // - pause d'urgence active ;
+  // - campagne gelée par la gouvernance.
+  if (paused) {
+    throw new Error(
+      "TIWIZI est temporairement suspendue pour des raisons de sécurité."
+    );
   }
 
-  const tx = await crowdfunding.contribute(campaignId, {
-    value: amount,
-  });
+  if (campaign.isFrozen) {
+    throw new Error(
+      "Cette campagne est gelée par la gouvernance."
+    );
+  }
 
+  // ----------------------------------------------------------
+  // ENVOI DE LA TRANSACTION
+  // ----------------------------------------------------------
+
+  const tx = await crowdfunding.contribute(
+    campaignId,
+    {
+      value: amount,
+    }
+  );
+
+  // Notifier l'interface dès la soumission.
   onSubmitted?.(tx.hash);
 
+  // Attendre la confirmation blockchain.
   const receipt = await tx.wait();
 
   if (!receipt || receipt.status !== 1) {
-    throw new Error("La contribution n'a pas été confirmée avec succès.");
+    throw new Error(
+      "La contribution n'a pas été confirmée avec succès."
+    );
   }
 
-  // Lire le solde obtenu dans le token de cette campagne.
+  // ----------------------------------------------------------
+  // RÉCUPÉRER LES CFD OBTENUS
+  // ----------------------------------------------------------
+
+  // Chaque campagne possède son propre CFDToken.
   const token = new Contract(
     campaign.token,
     tokenArtifact.abi,
@@ -345,13 +488,18 @@ export async function contributeToCampaign(
   try {
     const balance = await token.balanceOf(
       await signer.getAddress(),
-      { blockTag: receipt.blockNumber }
+      {
+        blockTag: receipt.blockNumber,
+      }
     );
 
-    cfdBalance = formatUnits(balance, 18);
+    cfdBalance = formatUnits(
+      balance,
+      18
+    );
   } catch {
-    // Une erreur de lecture du solde ne doit pas faire croire
-    // que la contribution confirmée a échoué.
+    // Si la lecture CFD échoue, la contribution
+    // confirmée reste une transaction réussie.
   }
 
   return {

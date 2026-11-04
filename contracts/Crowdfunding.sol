@@ -62,6 +62,20 @@ contract Crowdfunding is AccessControl, ReentrancyGuard, Pausable {
     uint256 public constant MIN_DURATION = 1 days;
     uint256 public constant MAX_DURATION = 90 days;
 
+    // Circuit breaker : suspension logique de 24 h au maximum et délai entre deux pauses.
+    // Le stockage Pausable peut nécessiter une synchronisation après expiration.
+    uint256 public constant MAX_PAUSE_DURATION = 1 days;
+    uint256 public constant PAUSE_COOLDOWN = 1 days;
+
+    uint256 public pauseStartedAt;
+    uint256 public totalPausedSeconds;
+    uint256 public lastPauseEndedAt;
+    bool public hasPausedBefore;
+
+    event EmergencyPauseStarted(address indexed administrator, uint256 startedAt, uint256 expiresAt);
+    event EmergencyPauseEnded(address indexed operator, uint256 endedAt, uint256 duration);
+
+
     // STRUCTURES
 
     // enum : type de donnée qui définit une liste de constantes nommées.
@@ -78,7 +92,7 @@ contract Crowdfunding is AccessControl, ReentrancyGuard, Pausable {
         address creator;          // Qui a créé la campagne
         address beneficiary;      // Qui recevra les fonds
         uint256 goal;             // Objectif en wei
-        uint256 deadline;         // Timestamp de fin
+        uint256 deadline;         // Date limite sur l'horloge effective (voir effectiveTime)
         uint256 totalRaised;      // Total collecté
         uint256 availableFunds;   // Fonds encore disponibles (après éventuels refunds)
         uint256 totalRefunded;    // Total déjà remboursé aux porteurs de CFD (historique)
@@ -207,7 +221,7 @@ contract Crowdfunding is AccessControl, ReentrancyGuard, Pausable {
         uint256 duration,
         address beneficiary,
         string calldata ipfsHash
-    ) external whenNotPaused returns (uint256 campaignId) {
+    ) external whenOperational returns (uint256 campaignId) {
         // CHECKS
         require(goal > 0, "Goal must be > 0");
         require(beneficiary != address(0), "Beneficiary is zero address");
@@ -234,7 +248,7 @@ contract Crowdfunding is AccessControl, ReentrancyGuard, Pausable {
             address(this)
         );
 
-        uint256 deadline = block.timestamp + duration; //  block.timestamp est une variable globale qui donne le timestamp du bloc actuel (en secondes).
+        uint256 deadline = effectiveTime() + duration; // Horloge suspendue pendant les pauses globales.
 
         campaigns[campaignId] = Campaign({
             creator: msg.sender,
@@ -267,7 +281,7 @@ contract Crowdfunding is AccessControl, ReentrancyGuard, Pausable {
      * @param campaignId Identifiant de la campagne
      * @dev   Le contributeur reçoit des CFD proportionnellement au montant envoyé.
      */
-    function contribute(uint256 campaignId) external payable whenNotPaused nonReentrant {
+    function contribute(uint256 campaignId) external payable whenOperational nonReentrant {
             // payabla : Il autorise la fonction à recevoir de l'ETH.
         Campaign storage campaign = campaigns[campaignId];
             // storage : mot-clé qui indique que la variable est stockée dans l'état du contrat (storage) et non pas en mémoire temporaire (memory). Cela permet de modifier directement les données persistantes du contrat.
@@ -276,7 +290,7 @@ contract Crowdfunding is AccessControl, ReentrancyGuard, Pausable {
         require(campaign.creator != address(0), "Campaign does not exist");
         require(campaign.status == CampaignStatus.Active, "Campaign not active");
         require(!campaign.isFrozen, "Campaign is frozen");
-        require(block.timestamp < campaign.deadline, "Campaign ended");
+        require(effectiveTime() < campaign.deadline, "Campaign ended");
         require(msg.value > 0, "Contribution must be > 0");
 
         //  EFFECTS 
@@ -309,7 +323,7 @@ contract Crowdfunding is AccessControl, ReentrancyGuard, Pausable {
 
         require(campaign.creator != address(0), "Campaign does not exist");
         require(campaign.status == CampaignStatus.Active, "Campaign not active");
-        require(block.timestamp >= campaign.deadline, "Campaign still running");
+        require(effectiveTime() >= campaign.deadline, "Campaign still running");
         // (mise à jour) On n'exige plus "pas gelée" : le temps continue de s'écouler pendant un gel
         // (Conception.md §6). Une campagne gelée dont l'échéance est passée doit pouvoir être finalisée,
         // sinon ses contributeurs ne pourraient jamais être remboursés.
@@ -320,7 +334,7 @@ contract Crowdfunding is AccessControl, ReentrancyGuard, Pausable {
      * @notice Permet à un contributeur de se faire rembourser si la campagne a échoué ou a été annulée.
      * @param campaignId Identifiant de la campagne
      */
-    function refund(uint256 campaignId) external nonReentrant whenNotPaused {
+    function refund(uint256 campaignId) external nonReentrant {
         Campaign storage campaign = campaigns[campaignId];
 
         // CHECKS
@@ -432,20 +446,94 @@ contract Crowdfunding is AccessControl, ReentrancyGuard, Pausable {
     }
 
     /**
-     * @notice Pause d'urgence de toute la plateforme (circuit breaker).
+     * @notice Temps logique de la plateforme. N'avance pas pendant une pause.
+     * @dev La campagne stocke son échéance dans cette unité de temps.
+     *      L'horloge reprend logiquement à l'expiration des 24 h,
+     *      même si le stockage de Pausable n'a pas encore été synchronisé.
      */
-    function pause() external onlyRole(ADMIN_ROLE) {
-        _pause();
+    function effectiveTime() public view returns (uint256) {
+        uint256 elapsed = totalPausedSeconds;
+        if (paused()) {
+            uint256 spent = block.timestamp - pauseStartedAt;
+            elapsed += spent > MAX_PAUSE_DURATION ? MAX_PAUSE_DURATION : spent;
+        }
+        return block.timestamp - elapsed;
     }
 
     /**
-     * @notice Reprend les opérations après une pause.
+     * @notice Date limite prévisionnelle dans le temps réel (Unix).
+     * @dev Pendant une pause active, cette date recule avec le temps,
+     *      dans la limite de 24 h.
+     *      À utiliser dans le frontend au lieu du champ campaigns(id).deadline.
      */
-    function unpause() external onlyRole(ADMIN_ROLE) {
-        _unpause();
+    function effectiveDeadline(uint256 campaignId) external view returns (uint256) {
+        require(campaigns[campaignId].creator != address(0), "Campaign does not exist");
+        uint256 elapsed = totalPausedSeconds;
+        if (paused()) {
+            uint256 spent = block.timestamp - pauseStartedAt;
+            elapsed += spent > MAX_PAUSE_DURATION ? MAX_PAUSE_DURATION : spent;
+        }
+        return campaigns[campaignId].deadline + elapsed;
     }
 
-   
+    /// @notice Indique si les opérations sensibles doivent effectivement rester bloquées.
+    function emergencyPauseActive() public view returns (bool) {
+        return paused() && block.timestamp < pauseStartedAt + MAX_PAUSE_DURATION;
+    }
+
+    // Si la pause de stockage a expiré, la clore avant de poursuivre l'opération.
+    modifier whenOperational() {
+        if (paused() && !emergencyPauseActive()) {
+            _finishPause();
+        }
+        _requireNotPaused();
+        _;
+    }
+
+    /// @notice Date à partir de laquelle la pause peut être clôturée par tout le monde.
+    function pauseExpiresAt() external view returns (uint256) {
+        return paused() ? pauseStartedAt + MAX_PAUSE_DURATION : 0;
+    }
+
+    /**
+     * @notice Pause d'urgence : réservée au rôle Admin, 24 h d'effet maximum.
+     * @dev Un délai de 24 h est imposé entre la fin d'une pause et la suivante.
+     *      Aucun mécanisme de prolongation exceptionnelle n'est inclus dans cette version.
+     */
+    function pause() external onlyRole(ADMIN_ROLE) whenNotPaused {
+        if (hasPausedBefore) {
+            require(block.timestamp >= lastPauseEndedAt + PAUSE_COOLDOWN, "Pause cooldown active");
+        }
+        pauseStartedAt = block.timestamp;
+        hasPausedBefore = true;
+        _pause();
+        emit EmergencyPauseStarted(msg.sender, block.timestamp, block.timestamp + MAX_PAUSE_DURATION);
+    }
+
+    /// @notice Reprise anticipée, réservée à l'Admin.
+    function unpause() external onlyRole(ADMIN_ROLE) whenPaused {
+        _finishPause();
+    }
+
+    /**
+     * @notice Permet à n'importe qui de synchroniser l'état après 24 h.
+     * @dev Les opérations whenOperational se réactivent logiquement sans cette transaction.
+     */
+    function expirePause() external whenPaused {
+        require(block.timestamp >= pauseStartedAt + MAX_PAUSE_DURATION, "Pause still active");
+        _finishPause();
+    }
+
+    function _finishPause() internal {
+        uint256 spent = block.timestamp - pauseStartedAt;
+        uint256 duration = spent > MAX_PAUSE_DURATION ? MAX_PAUSE_DURATION : spent;
+        totalPausedSeconds += duration;
+        lastPauseEndedAt = pauseStartedAt + duration;
+        pauseStartedAt = 0;
+        _unpause();
+        emit EmergencyPauseEnded(msg.sender, block.timestamp, duration);
+    }
+
     //                    FONCTIONS DE RETRAIT (gouvernance + multisig + frais)
 
     // Déroulement complet d'un retrait :
@@ -466,7 +554,7 @@ contract Crowdfunding is AccessControl, ReentrancyGuard, Pausable {
      *         Refusé si l'objectif n'est pas atteint : on ne paie jamais des fonds encore nécessaires à un remboursement.
      *         Cette fonction n'envoie aucun ETH.
      */
-    function requestWithdrawal(uint256 campaignId) external whenNotPaused {
+    function requestWithdrawal(uint256 campaignId) external whenOperational {
         Campaign storage campaign = campaigns[campaignId];
 
         // CHECKS
@@ -547,7 +635,7 @@ contract Crowdfunding is AccessControl, ReentrancyGuard, Pausable {
      *         Les frais ne sont prélevés qu'ici : une campagne échouée ou annulée n'en paie jamais
      *         (le remboursement rend l'intégralité des ETH).
      */
-    function withdrawFunds(uint256 campaignId) external nonReentrant whenNotPaused {
+    function withdrawFunds(uint256 campaignId) external nonReentrant whenOperational {
         Campaign storage campaign = campaigns[campaignId];
         WithdrawalRequest storage request = withdrawals[campaignId];
 
@@ -586,7 +674,7 @@ contract Crowdfunding is AccessControl, ReentrancyGuard, Pausable {
      *         Ensuite, toute sortie d'argent depuis le multisig exige 2 signataires sur 3.
      *         Le contrat MultiSig doit pouvoir recevoir de l'ETH.
      */
-    function withdrawFees() external nonReentrant whenNotPaused {
+    function withdrawFees() external nonReentrant whenOperational {
         require(multiSig != address(0), "MultiSig not set");
 
         uint256 amount = accruedFees;
@@ -647,7 +735,7 @@ contract Crowdfunding is AccessControl, ReentrancyGuard, Pausable {
      *      internal : appelable seulement depuis ce contrat (finalizeCampaign et refund).
      */
     function _finalizeIfEnded(uint256 campaignId, Campaign storage campaign) internal {
-        if (campaign.status == CampaignStatus.Active && block.timestamp >= campaign.deadline) {
+        if (campaign.status == CampaignStatus.Active && effectiveTime() >= campaign.deadline) {
             if (campaign.totalRaised >= campaign.goal) {
                 campaign.status = CampaignStatus.Successful;
             } else {
@@ -658,10 +746,3 @@ contract Crowdfunding is AccessControl, ReentrancyGuard, Pausable {
         }
     }
 }
-
-
-// NatSpec = Natural Specification (Spécification Naturelle). C'est un format de documentation standard pour Solidity.
-// C'est un ensemble de commentaires spéciaux qui commencent par /// ou /** ... */ et qui utilisent des tags comme @title, @notice, @dev, @param, @return.
-// À quoi ça sert ?
-// Générer de la documentation automatiquement (avec des outils comme solc --userdoc ou hardhat docgen).
-// Aider les IDE (VS Code) à afficher les infos au survol.

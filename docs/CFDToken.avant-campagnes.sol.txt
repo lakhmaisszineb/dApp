@@ -1,0 +1,115 @@
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.28;
+
+// OpenZeppelin fournit la gestion standard des jetons :
+// soldes, transferts, approbations et offre totale.
+import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+
+// OpenZeppelin fournit la gestion des permissions par rôles.
+import {AccessControl} from "@openzeppelin/contracts/access/AccessControl.sol";
+
+/**
+ * @title CFDToken
+ * @notice Jeton CFD de notre plateforme de financement participatif.
+ *
+ * @dev Version J2 : base ERC-20 et création contrôlée des jetons.
+ *
+ * Fonctionnement prévu :
+ * 1. Crowdfunding reçoit une contribution en ETH.
+ * 2. Crowdfunding calcule la quantité de CFD correspondante.
+ * 3. Crowdfunding appelle mint(contributeur, quantité).
+ *
+ * Ce contrat ne reçoit pas les contributions ETH et ne gère pas
+ * les campagnes, les remboursements ou les retraits.
+ *
+ * Les snapshots et les restrictions liées aux remboursements
+ * seront ajoutés aux étapes suivantes.
+ */
+contract CFDToken is ERC20, AccessControl {
+
+    /**
+     * @notice Identifiant du rôle autorisé à créer des CFD.
+     *
+     * @dev Ce rôle doit être attribué au contrat Crowdfunding
+     * lors de l'intégration.
+     *
+     * Connaître cet identifiant ne donne aucune permission :
+     * une adresse doit avoir reçu le rôle dans AccessControl.
+     */
+    bytes32 public constant MINTER_ROLE = keccak256("MINTER_ROLE");
+
+    /// @notice L'adresse d'administration ne peut pas être nulle.
+    error InvalidAdmin();
+
+    /// @notice La quantité de jetons à créer doit être positive.
+    error ZeroMintAmount();
+
+    /**
+     * @notice Initialise le jeton et son compte de configuration.
+     *
+     * @param admin Adresse autorisée à attribuer et retirer les rôles.
+     *
+     * @dev Le constructeur s'exécute une seule fois au déploiement.
+     *
+     * Caractéristiques du jeton :
+     * - Nom : Crowdfunding Governance Token.
+     * - Symbole : CFD.
+     * - Décimales : 18, valeur par défaut d'OpenZeppelin ERC20.
+     * - Offre initiale : zéro, car aucun appel à _mint n'est effectué.
+     *
+     * L'admin reçoit DEFAULT_ADMIN_ROLE, mais pas MINTER_ROLE.
+     * Il ne peut donc pas appeler mint sans recevoir ce second rôle.
+     *
+     * Attention : DEFAULT_ADMIN_ROLE permet d'attribuer MINTER_ROLE,
+     * y compris à soi-même. Les permissions de configuration devront
+     * être encadrées lors de l'intégration finale.
+     *
+     * Ce compte de configuration n'est pas automatiquement
+     * l'administrateur d'urgence de la plateforme.
+     */
+    constructor(address admin)
+        ERC20("Crowdfunding Governance Token", "CFD")
+    {
+        if (admin == address(0)) {
+            revert InvalidAdmin();
+        }
+
+        _grantRole(DEFAULT_ADMIN_ROLE, admin);
+    }
+
+    /**
+     * @notice Crée des CFD pour une adresse destinataire.
+     *
+     * @param to Adresse qui recevra les jetons.
+     * @param amount Quantité exprimée en petites unités CFD.
+     *
+     * @dev Seules les adresses possédant MINTER_ROLE peuvent appeler
+     * cette fonction. AccessControl refuse automatiquement les autres.
+     *
+     * Avec 18 décimales :
+     * - 1 CFD   = 1 * 10**18 petites unités.
+     * - 100 CFD = 100 * 10**18 petites unités.
+     *
+     * Le calcul du nombre de CFD attribués pour une contribution ETH
+     * appartient à Crowdfunding. Cette fonction reçoit la quantité
+     * déjà calculée.
+     *
+     * La fonction interne _mint d'OpenZeppelin :
+     * - refuse un destinataire égal à l'adresse nulle ;
+     * - augmente le solde du destinataire ;
+     * - augmente l'offre totale ;
+     * - émet Transfer(address(0), to, amount).
+     *
+     * Aucun ETH n'est attendu : cette fonction n'est pas payable.
+     */
+    function mint(address to, uint256 amount)
+        external
+        onlyRole(MINTER_ROLE)
+    {
+        if (amount == 0) {
+            revert ZeroMintAmount();
+        }
+
+        _mint(to, amount);
+    }
+}

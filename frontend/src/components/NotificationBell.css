@@ -1,0 +1,364 @@
+
+/* TIWIZI - Notifications claires et discrètes */
+
+.tn-wrapper {
+  position: relative;
+  flex-shrink: 0;
+}
+
+.tn-trigger {
+  position: relative;
+  width: 43px;
+  height: 43px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 13px;
+  border: 1px solid #e1e8f0;
+  color: #365b80;
+  background: #f6f9fc;
+  cursor: pointer;
+}
+
+.tn-trigger:hover {
+  background: #eaf2fb;
+}
+
+.tn-count {
+  position: absolute;
+  top: -5px;
+  right: -6px;
+  min-width: 19px;
+  height: 19px;
+  padding: 0 4px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  border-radius: 20px;
+  color: white;
+  background: #bd5e55;
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.tn-panel {
+  position: absolute;
+  top: calc(100% + 12px);
+  right: 0;
+  width: min(370px, calc(100vw - 32px));
+  max-height: min(530px, 75vh);
+  overflow-y: auto;
+  z-index: 200;
+  border-radius: 16px;
+  border: 1px solid #e0e7ef;
+  background: #fff;
+  box-shadow: 0 14px 40px rgba(27, 48, 78, 0.13);
+  color: #233a55;
+}
+
+.tn-panel-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 20px;
+  border-bottom: 1px solid #edf1f5;
+}
+
+.tn-panel-heading strong {
+  font-size: 15px;
+}
+
+.tn-panel-heading p {
+  font-size: 12px;
+  color: #8290a2;
+  margin: 6px 0 0;
+}
+
+.tn-close {
+  border: none;
+  background: transparent;
+  color: #8392a5;
+  font-size: 24px;
+  cursor: pointer;
+  line-height: 1;
+}
+
+.tn-list {
+  display: grid;
+}
+
+.tn-item {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  padding: 16px 18px;
+  border-bottom: 1px solid #edf1f5;
+  text-decoration: none;
+  color: inherit;
+}
+
+.tn-item:hover {
+  background: #f7fafd;
+}
+
+.tn-item-symbol {
+  width: 34px;
+  height: 34px;
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+  border-radius: 10px;
+  background: #eaf2fc;
+  color: #4d76a8;
+}
+
+.tn-item-content {
+  display: grid;
+  gap: 5px;
+  flex: 1;
+  min-width: 0;
+}
+
+.tn-item-content strong {
+  font-size: 12px;
+  color: #233e60;
+}
+
+.tn-item-content span {
+  color: #65798f;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.tn-item-content small {
+  color: #8b98a8;
+  font-size: 11px;
+}
+
+.tn-empty {
+  display: grid;
+  justify-items: center;
+  gap: 9px;
+  text-align: center;
+  padding: 30px 18px;
+  color: #75849a;
+  font-size: 12px;
+}
+
+.tn-empty p {
+  margin: 0;
+}
+
+.tn-empty a {
+  color: #376da7;
+  font-weight: 700;
+}
+
+.tn-empty-icon {
+  color: #3e926a;
+  font-size: 25px;
+}
+
+.tn-feedback,
+.tn-error {
+  padding: 12px 18px;
+  font-size: 12px;
+  color: #657a94;
+}
+
+.tn-error {
+  color: #a83232;
+}
+
+.tn-panel-footer {
+  padding: 15px 18px;
+  text-align: center;
+  background: #fafbfd;
+}
+
+.tn-panel-footer a {
+  font-size: 12px;
+  color: #35679f;
+  text-decoration: none;
+  font-weight: 700;
+}
+
+@media (max-width: 600px) {
+  .tn-panel {
+    right: -8px;
+  }
+}
+
+/* ===========================================
+   TIWIZI - Cloche agrandie et améliorée
+   =========================================== */
+
+.tn-wrapper {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+/* Bouton de notification */
+.tn-trigger {
+  position: relative;
+
+  width: 52px;
+  height: 52px;
+
+  min-width: 52px;
+  min-height: 52px;
+
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+
+  border: 1px solid #dce6f2;
+  border-radius: 15px;
+
+  background: #f0f5fc;
+  color: #255a98;
+
+  cursor: pointer;
+  transition:
+    background 0.2s ease,
+    border-color 0.2s ease,
+    transform 0.2s ease;
+}
+
+.tn-trigger:hover {
+  background: #e3efff;
+  border-color: #b8d3f5;
+  transform: translateY(-1px);
+}
+
+.tn-trigger:focus-visible {
+  outline: 3px solid #8dbafa;
+  outline-offset: 3px;
+}
+
+/* Grande icône SVG */
+.tn-bell-icon {
+  width: 28px;
+  height: 28px;
+  flex-shrink: 0;
+}
+
+/* Badge du nombre de notifications non consultées */
+.tn-count {
+  position: absolute;
+  top: -7px;
+  right: -7px;
+
+  min-width: 22px;
+  height: 22px;
+  padding: 0 5px;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  border-radius: 50px;
+  background: #cf514c;
+  color: white;
+
+  font-size: 11px;
+  font-weight: 800;
+  line-height: 1;
+  border: 2px solid white;
+}
+
+/* Lien vers une proposition */
+.tn-consult-link {
+  color: #2563eb !important;
+  font-size: 12px !important;
+  font-weight: 700;
+  margin-top: 4px;
+}
+
+.tn-arrow {
+  color: #6689ac;
+  font-size: 17px;
+}
+
+/* Adaptation mobile */
+@media (max-width: 600px) {
+  .tn-trigger {
+    width: 46px;
+    height: 46px;
+    min-width: 46px;
+    min-height: 46px;
+  }
+
+  .tn-bell-icon {
+    width: 25px;
+    height: 25px;
+  }
+}
+
+/* ======================================================
+   TIWIZI — Cloche unique de notifications
+   ====================================================== */
+
+.tn-unified-tools {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px;
+  padding: 12px 0;
+  border-bottom: 1px solid #e8eef6;
+}
+
+.tn-unified-tools button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 10px;
+  border: 1px solid #dce8f5;
+  border-radius: 9px;
+  background: #f6f9fe;
+  color: #326ea9;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.tn-unified-tools button:hover:not(:disabled) {
+  background: #eaf3ff;
+}
+
+.tn-unified-tools button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.tn-item-symbol {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.tn-arrow {
+  flex-shrink: 0;
+}
+
+.tn-error {
+  overflow-wrap: anywhere;
+}
+
+.tn-error svg {
+  vertical-align: middle;
+  margin-right: 7px;
+}
+
+.tn-panel-footer {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+

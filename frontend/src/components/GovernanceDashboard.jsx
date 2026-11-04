@@ -1,4 +1,6 @@
-import { useEffect, useRef, useState } from "react";
+
+import { useCallback, useEffect, useRef, useState } from "react";
+import { useSearchParams } from "react-router";
 
 import {
   PROPOSAL_TYPES,
@@ -10,25 +12,30 @@ import {
   executeProposal,
 } from "../services/governance.js";
 
+// ============================================================
+// TIWIZI - Tableau de bord de gouvernance
+// Création, consultation, vote, exécution et notifications
+// ============================================================
+
 function explainError(error) {
-  const code = error.code ?? error.info?.error?.code;
+  const code = error?.code ?? error?.info?.error?.code;
 
   if (code === 4001 || code === "ACTION_REJECTED") {
     return "Demande refusée dans MetaMask.";
   }
 
   const reason =
-    error.reason ||
-    error.info?.error?.data?.reason ||
-    error.shortMessage ||
-    error.message ||
+    error?.reason ||
+    error?.info?.error?.data?.reason ||
+    error?.shortMessage ||
+    error?.message ||
     "Une erreur est survenue.";
 
   const translations = {
     "No CFD at snapshot":
-      "Tu ne possédais pas de voix pour cette campagne au snapshot.",
+      "Tu ne possédais pas de CFD au snapshot de cette proposition.",
     "No voting power":
-      "Tu ne disposes pas de voix au snapshot de cette proposition.",
+      "Tu ne disposes pas de voix pour cette proposition.",
     "Already voted":
       "Ce compte a déjà voté sur cette proposition.",
     "Voting period ended":
@@ -36,15 +43,15 @@ function explainError(error) {
     "Voting period not ended":
       "La période de vote n'est pas encore terminée.",
     "Execution delay not elapsed":
-      "Le délai supplémentaire avant exécution n'est pas terminé.",
+      "Le délai de sécurité avant exécution n'est pas terminé.",
     "Proposal not succeeded":
       "La proposition n'a pas été adoptée.",
     "No withdrawal requested":
-      "Le bénéficiaire doit d'abord demander le retrait dans Crowdfunding.",
+      "Le bénéficiaire doit d'abord demander le retrait.",
     "Only beneficiary":
-      "Seul le bénéficiaire peut proposer l'autorisation du retrait.",
+      "Seul le bénéficiaire peut effectuer cette opération.",
     "Campaign not successful":
-      "La campagne doit avoir le statut Successful pour cette proposition.",
+      "La campagne doit avoir le statut Successful.",
     "Campaign already frozen":
       "La campagne est déjà gelée.",
     "Campaign not frozen":
@@ -61,185 +68,341 @@ function explainError(error) {
       "Cette proposition a déjà été exécutée.",
   };
 
-  for (const [text, translation] of Object.entries(translations)) {
-    if (String(reason).includes(text)) return translation;
+  for (const [key, translation] of Object.entries(translations)) {
+    if (String(reason).includes(key)) {
+      return translation;
+    }
   }
 
-  return reason;
+  return String(reason);
+}
+
+function getMetaMaskProvider() {
+  const ethereum = window.ethereum;
+
+  if (Array.isArray(ethereum?.providers)) {
+    return ethereum.providers.find((provider) => provider.isMetaMask);
+  }
+
+  return ethereum?.isMetaMask ? ethereum : undefined;
+}
+
+function calculateQuorumProgress(proposal) {
+  const participation = Number(proposal.participation || 0);
+  const quorum = Number(proposal.quorum || 0);
+
+  if (quorum <= 0) {
+    return 0;
+  }
+
+  return Math.max(
+    0,
+    Math.min(100, (participation / quorum) * 100)
+  );
 }
 
 export default function GovernanceDashboard() {
+  // ----------------------------------------------------------
+  // Paramètres URL : /gouvernance?proposal=1
+  // ----------------------------------------------------------
+  const [searchParams, setSearchParams] = useSearchParams();
+
+  const requestedProposalId = searchParams.get("proposal");
+
+  // ----------------------------------------------------------
+  // Formulaire de création
+  // ----------------------------------------------------------
   const [campaignId, setCampaignId] = useState("");
   const [type, setType] = useState("1");
-  const [proposalId, setProposalId] = useState("");
+
+  // ----------------------------------------------------------
+  // Consultation des propositions
+  // ----------------------------------------------------------
+  const [proposalId, setProposalId] = useState(
+    requestedProposalId || ""
+  );
 
   const [proposal, setProposal] = useState(null);
   const [recent, setRecent] = useState([]);
   const [account, setAccount] = useState("");
 
+  // ----------------------------------------------------------
+  // États de l'interface
+  // ----------------------------------------------------------
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
 
-  // Invalider une lecture si le compte change pendant son exécution.
+  // Invalide les anciennes lectures si MetaMask change de compte.
   const revision = useRef(0);
 
+  // ----------------------------------------------------------
+  // Charger la liste des propositions
+  // ----------------------------------------------------------
+  const refreshList = useCallback(async () => {
+    setBusy(true);
+    setError("");
+
+    try {
+      const items = await readRecentProposals();
+      setRecent(items);
+    } catch (err) {
+      setError(explainError(err));
+    } finally {
+      setBusy(false);
+    }
+  }, []);
+
+  // ----------------------------------------------------------
+  // Charger une proposition
+  // ----------------------------------------------------------
+  const loadProposal = useCallback(async (id) => {
+    const requestedId = String(id ?? "").trim();
+
+    if (!/^[1-9]\d*$/.test(requestedId)) {
+      setError("Saisis un identifiant de proposition valide.");
+      return;
+    }
+
+    const currentRevision = revision.current;
+
+    setBusy(true);
+    setError("");
+    setMessage("");
+    setProposal(null);
+
+    try {
+      const address = await getAuthorizedAccount();
+
+      const result = await readProposal(
+        requestedId,
+        address
+      );
+
+      if (revision.current !== currentRevision) {
+        return;
+      }
+
+      setAccount(address || "");
+      setProposalId(String(result.id));
+      setProposal(result);
+    } catch (err) {
+      if (revision.current === currentRevision) {
+        setError(explainError(err));
+      }
+    } finally {
+      if (revision.current === currentRevision) {
+        setBusy(false);
+      }
+    }
+  }, []);
+
+  // ----------------------------------------------------------
+  // Initialisation : compte MetaMask et propositions récentes
+  // ----------------------------------------------------------
   useEffect(() => {
     let active = true;
 
-    const ethereum = window.ethereum;
-    const wallet = Array.isArray(ethereum?.providers)
-      ? ethereum.providers.find((item) => item.isMetaMask)
-      : ethereum?.isMetaMask
-        ? ethereum
-        : undefined;
+    const wallet = getMetaMaskProvider();
 
     const initialRevision = revision.current;
 
     getAuthorizedAccount()
       .then((address) => {
-        if (active && revision.current === initialRevision) {
-          setAccount(address);
+        if (
+          active &&
+          revision.current === initialRevision
+        ) {
+          setAccount(address || "");
         }
       })
       .catch(() => {
-        // Le bouton de connexion reste géré par WalletConnection.
+        // La connexion est gérée par WalletConnection.
       });
 
     readRecentProposals()
       .then((items) => {
-        if (active) setRecent(items);
+        if (active) {
+          setRecent(items);
+        }
       })
       .catch(() => {
         if (active) {
-          setError("Impossible de charger les propositions récentes.");
+          setError(
+            "Impossible de charger les propositions récentes."
+          );
         }
       });
 
-    function accountsChanged(accounts) {
+    function handleAccountsChanged(accounts) {
       revision.current += 1;
-      setAccount(accounts[0] || "");
+
+      setAccount(accounts?.[0] || "");
       setProposal(null);
       setMessage("");
       setError("");
+      setBusy(false);
     }
 
-    function chainChanged() {
+    function handleChainChanged() {
       revision.current += 1;
+
       setProposal(null);
       setMessage("");
       setError("");
+      setBusy(false);
     }
 
-    wallet?.on("accountsChanged", accountsChanged);
-    wallet?.on("chainChanged", chainChanged);
+    wallet?.on("accountsChanged", handleAccountsChanged);
+    wallet?.on("chainChanged", handleChainChanged);
 
     return () => {
       active = false;
-      wallet?.removeListener("accountsChanged", accountsChanged);
-      wallet?.removeListener("chainChanged", chainChanged);
+      revision.current += 1;
+
+      wallet?.removeListener(
+        "accountsChanged",
+        handleAccountsChanged
+      );
+
+      wallet?.removeListener(
+        "chainChanged",
+        handleChainChanged
+      );
     };
   }, []);
 
-  async function loadProposal(id = proposalId) {
+  // ----------------------------------------------------------
+  // Ouvrir automatiquement la proposition demandée par URL
+  // Exemple : /gouvernance?proposal=1
+  // ----------------------------------------------------------
+  useEffect(() => {
+    if (!requestedProposalId) {
+      return;
+    }
+
+    void loadProposal(requestedProposalId);
+  }, [requestedProposalId, loadProposal]);
+
+  // ----------------------------------------------------------
+  // Navigation vers une proposition
+  // ----------------------------------------------------------
+  function openProposal(id) {
+    const selectedId = String(id);
+
+    setProposalId(selectedId);
+
+    if (requestedProposalId === selectedId) {
+      void loadProposal(selectedId);
+    } else {
+      setSearchParams({ proposal: selectedId });
+    }
+  }
+
+  // ----------------------------------------------------------
+  // Exécuter une action blockchain
+  // ----------------------------------------------------------
+  async function performAction(action, successText) {
     const currentRevision = revision.current;
 
     setBusy(true);
     setError("");
-    setProposal(null);
-
-    try {
-      const address = await getAuthorizedAccount();
-      const result = await readProposal(id, address);
-
-      if (revision.current === currentRevision) {
-        setAccount(address);
-        setProposalId(result.id);
-        setProposal(result);
-      }
-    } catch (loadError) {
-      setError(explainError(loadError));
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function refreshList() {
-    setBusy(true);
-    setError("");
-
-    try {
-      setRecent(await readRecentProposals());
-    } catch (loadError) {
-      setError(explainError(loadError));
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function performAction(action, successText) {
-    setBusy(true);
-    setError("");
-    setMessage("Confirme l’action dans MetaMask.");
+    setMessage("Confirme la transaction dans MetaMask.");
 
     let result;
 
     try {
       result = await action((hash) => {
-        setMessage(
-          `Transaction envoyée : ${hash}. Confirmation en attente…`
-        );
+        if (revision.current === currentRevision) {
+          setMessage(
+            `Transaction envoyée : ${hash}. ` +
+              "Confirmation en attente..."
+          );
+        }
       });
-    } catch (actionError) {
-      setMessage("");
-      setError(explainError(actionError));
-      setBusy(false);
+    } catch (err) {
+      if (revision.current === currentRevision) {
+        setMessage("");
+        setError(explainError(err));
+        setBusy(false);
+      }
       return;
     }
 
-    // Une erreur de rafraîchissement ne doit pas masquer
-    // le succès d'une transaction déjà confirmée.
-    setMessage(`${successText} Transaction : ${result.hash}`);
+    if (revision.current !== currentRevision) {
+      return;
+    }
 
+    setMessage(
+      `${successText} Transaction : ${result.hash}`
+    );
+
+    // Rafraîchir l'état sans masquer une transaction réussie.
     try {
-      setRecent(await readRecentProposals());
+      const items = await readRecentProposals();
+
+      if (revision.current !== currentRevision) {
+        return;
+      }
+
+      setRecent(items);
 
       const id = result.proposalId || proposal?.id;
 
       if (id) {
-        const currentRevision = revision.current;
         const address = await getAuthorizedAccount();
         const updated = await readProposal(id, address);
 
-        if (revision.current === currentRevision) {
-          setAccount(address);
-          setProposalId(id);
-          setProposal(updated);
+        if (revision.current !== currentRevision) {
+          return;
+        }
+
+        setAccount(address || "");
+        setProposalId(String(id));
+        setProposal(updated);
+
+        // Une proposition créée peut être ouverte via URL.
+        if (result.proposalId) {
+          setSearchParams({
+            proposal: String(result.proposalId),
+          });
         }
       }
     } catch {
-      setProposal(null);
-      setMessage(
-        `${successText} Transaction : ${result.hash}. ` +
-        "Recharge les données pour voir le nouvel état."
-      );
+      if (revision.current === currentRevision) {
+        setMessage(
+          `${successText} Transaction : ${result.hash}. ` +
+            "Actualise la proposition pour voir son état."
+        );
+      }
     } finally {
-      setBusy(false);
+      if (revision.current === currentRevision) {
+        setBusy(false);
+      }
     }
   }
 
+  // ----------------------------------------------------------
+  // Interface
+  // ----------------------------------------------------------
   return (
-    <section>
+    <section className="governance-dashboard">
       <h2>Gouvernance des campagnes</h2>
 
       <p>
-        Les votes utilisent les CFD de la campagne concernée,
-        avec le poids enregistré au snapshot.
+        Les décisions de TIWIZI sont prises par les
+        détenteurs de CFD, avec un poids de vote enregistré
+        au snapshot de chaque proposition.
       </p>
 
-      <p>
-        Compte autorisé : {account || "Aucun compte connecté"}
+      <p style={{ overflowWrap: "anywhere" }}>
+        <strong>Compte connecté :</strong>{" "}
+        {account || "Aucun compte connecté"}
       </p>
+
+      {/* ================================================== */}
+      {/* CRÉER UNE PROPOSITION                              */}
+      {/* ================================================== */}
 
       <h3>Créer une proposition</h3>
 
@@ -249,7 +412,11 @@ export default function GovernanceDashboard() {
 
           void performAction(
             (onSubmitted) =>
-              createProposal(campaignId, type, onSubmitted),
+              createProposal(
+                campaignId,
+                type,
+                onSubmitted
+              ),
             "Proposition créée."
           );
         }}
@@ -260,43 +427,66 @@ export default function GovernanceDashboard() {
 
         <input
           id="governance-campaign"
+          type="number"
+          min="1"
+          step="1"
           value={campaignId}
-          onChange={(event) => setCampaignId(event.target.value)}
-          inputMode="numeric"
-          placeholder="1"
+          onChange={(event) =>
+            setCampaignId(event.target.value)
+          }
+          placeholder="Exemple : 1"
           disabled={busy}
           required
         />
 
-        <label htmlFor="proposal-type">Décision proposée</label>
+        <label htmlFor="proposal-type">
+          Décision proposée
+        </label>
 
         <select
           id="proposal-type"
           value={type}
-          onChange={(event) => setType(event.target.value)}
+          onChange={(event) =>
+            setType(event.target.value)
+          }
           disabled={busy}
         >
           {PROPOSAL_TYPES.map((label, index) => (
-            <option key={index} value={String(index)}>
+            <option
+              key={index}
+              value={String(index)}
+            >
               {label}
             </option>
           ))}
         </select>
 
-        <button type="submit" disabled={busy || !account}>
+        <button
+          type="submit"
+          disabled={busy || !account}
+        >
           Créer avec MetaMask
         </button>
       </form>
 
       <p>
-        Pour une proposition de retrait, le bénéficiaire doit avoir
-        déjà demandé le retrait dans Crowdfunding. Les autres
-        propositions nécessitent des voix au snapshot.
+        Pour une proposition de retrait, le bénéficiaire
+        doit avoir demandé le retrait au préalable.
+        Les autres propositions nécessitent les droits
+        de vote correspondants.
       </p>
+
+      {/* ================================================== */}
+      {/* LISTE DES PROPOSITIONS                             */}
+      {/* ================================================== */}
 
       <h3>Les 20 dernières propositions</h3>
 
-      <button onClick={refreshList} disabled={busy}>
+      <button
+        type="button"
+        onClick={() => void refreshList()}
+        disabled={busy}
+      >
         Actualiser la liste
       </button>
 
@@ -307,88 +497,227 @@ export default function GovernanceDashboard() {
           {recent.map((item) => (
             <li key={item.id}>
               <button
+                type="button"
                 disabled={busy}
-                onClick={() => loadProposal(item.id)}
+                onClick={() =>
+                  openProposal(item.id)
+                }
               >
-                #{item.id} — Campagne #{item.campaignId} — {item.type}
+                Proposition #{item.id} — Campagne #
+                {item.campaignId} — {item.type}
               </button>
             </li>
           ))}
         </ul>
       )}
 
+      {/* ================================================== */}
+      {/* CONSULTER UNE PROPOSITION                          */}
+      {/* ================================================== */}
+
       <h3>Consulter une proposition</h3>
 
       <form
         onSubmit={(event) => {
           event.preventDefault();
-          void loadProposal();
+          openProposal(proposalId);
         }}
       >
-        <label htmlFor="proposal-id">Identifiant de proposition</label>
+        <label htmlFor="proposal-id">
+          Identifiant de proposition
+        </label>
 
         <input
           id="proposal-id"
+          type="number"
+          min="1"
+          step="1"
           value={proposalId}
           onChange={(event) => {
             setProposalId(event.target.value);
             setProposal(null);
           }}
-          inputMode="numeric"
+          placeholder="Exemple : 1"
           disabled={busy}
           required
         />
 
-        <button type="submit" disabled={busy}>
+        <button
+          type="submit"
+          disabled={busy}
+        >
           Charger
         </button>
       </form>
 
+      {/* ================================================== */}
+      {/* DÉTAILS DE LA PROPOSITION                          */}
+      {/* ================================================== */}
+
       {proposal && (
-        <article>
+        <article
+          id="governance-proposal-details"
+          style={{ marginTop: "24px" }}
+        >
           <h3>
             Proposition #{proposal.id} — {proposal.type}
           </h3>
 
-          <p>Campagne : #{proposal.campaignId}</p>
-          <p>État : {proposal.state}</p>
-
-          <p style={{ overflowWrap: "anywhere" }}>
-            Proposant : {proposal.proposer}
+          <p>
+            <strong>Campagne :</strong> #
+            {proposal.campaignId}
           </p>
-
-          <p>Bloc du snapshot : {proposal.snapshotBlock}</p>
-          <p>Offre au snapshot : {proposal.snapshotSupply} CFD</p>
-          <p>Quorum requis : {proposal.quorum} CFD</p>
-
-          <p>Pour : {proposal.forVotes} CFD</p>
-          <p>Contre : {proposal.againstVotes} CFD</p>
-          <p>Participation : {proposal.participation} CFD</p>
-
-          <p>Fin du vote : {proposal.deadline}</p>
-          <p>Exécution possible à partir du : {proposal.executableAt}</p>
 
           <p>
-            Ton poids au snapshot :{" "}
-            {account ? `${proposal.weight} CFD` : "Connecte MetaMask"}
+            <strong>État :</strong> {proposal.state}
           </p>
 
-          <p>As-tu déjà voté ? {proposal.hasVoted ? "Oui" : "Non"}</p>
+          <p style={{ overflowWrap: "anywhere" }}>
+            <strong>Proposant :</strong>{" "}
+            {proposal.proposer}
+          </p>
+
+          <p>
+            <strong>Bloc du snapshot :</strong>{" "}
+            {proposal.snapshotBlock}
+          </p>
+
+          <p>
+            <strong>Offre au snapshot :</strong>{" "}
+            {proposal.snapshotSupply} CFD
+          </p>
+
+          {/* ---------------------------------------------- */}
+          {/* RÉSULTATS DU VOTE                               */}
+          {/* ---------------------------------------------- */}
+
+          <div
+            style={{
+              marginTop: "20px",
+              marginBottom: "20px",
+            }}
+          >
+            <h4>Résultats du vote</h4>
+
+            <p>
+              Offre au snapshot :{" "}
+              {proposal.snapshotSupply} CFD
+            </p>
+
+            <p>
+              Quorum requis : {proposal.quorum} CFD
+            </p>
+
+            <p>
+              Participation :{" "}
+              {proposal.participation} CFD
+            </p>
+
+            <div
+              role="progressbar"
+              aria-label="Progression vers le quorum"
+              aria-valuemin={0}
+              aria-valuemax={100}
+              aria-valuenow={calculateQuorumProgress(
+                proposal
+              )}
+              style={{
+                width: "100%",
+                height: "12px",
+                borderRadius: "8px",
+                backgroundColor: "#e5e7eb",
+                overflow: "hidden",
+                marginBottom: "10px",
+              }}
+            >
+              <div
+                style={{
+                  width: `${
+                    calculateQuorumProgress(proposal)
+                  }%`,
+                  height: "100%",
+                  backgroundColor: "#16a34a",
+                  transition: "width 0.3s ease",
+                }}
+              />
+            </div>
+
+            <p>
+              <strong>Pour :</strong>{" "}
+              {proposal.forVotes} CFD
+            </p>
+
+            <p>
+              <strong>Contre :</strong>{" "}
+              {proposal.againstVotes} CFD
+            </p>
+
+            <p>
+              <strong>État du vote :</strong>{" "}
+              {proposal.state}
+            </p>
+          </div>
+
+          {/* ---------------------------------------------- */}
+          {/* DÉLAIS                                         */}
+          {/* ---------------------------------------------- */}
+
+          <p>
+            <strong>Fin du vote :</strong>{" "}
+            {proposal.deadline}
+          </p>
+
+          <p>
+            <strong>Exécution possible à partir du :</strong>{" "}
+            {proposal.executableAt}
+          </p>
+
+          {/* ---------------------------------------------- */}
+          {/* DROITS DU COMPTE CONNECTÉ                      */}
+          {/* ---------------------------------------------- */}
+
+          <p>
+            <strong>Mon poids au snapshot :</strong>{" "}
+            {account
+              ? `${proposal.weight} CFD`
+              : "Connecte MetaMask"}
+          </p>
+
+          <p>
+            <strong>Ai-je déjà voté ?</strong>{" "}
+            {proposal.hasVoted ? "Oui" : "Non"}
+          </p>
 
           {!proposal.campaignOpen && (
-            <p>
+            <p role="status">
               La campagne est payée, échouée ou annulée :
               les actions de gouvernance sont bloquées.
             </p>
           )}
 
-          <div>
+          {/* ---------------------------------------------- */}
+          {/* ACTIONS DE VOTE                                */}
+          {/* ---------------------------------------------- */}
+
+          <div
+            style={{
+              display: "flex",
+              flexWrap: "wrap",
+              gap: "12px",
+              marginTop: "20px",
+            }}
+          >
             <button
+              type="button"
               disabled={busy || !proposal.canVote}
               onClick={() =>
-                performAction(
+                void performAction(
                   (onSubmitted) =>
-                    voteOnProposal(proposal.id, true, onSubmitted),
+                    voteOnProposal(
+                      proposal.id,
+                      true,
+                      onSubmitted
+                    ),
                   "Vote pour enregistré."
                 )
               }
@@ -397,11 +726,16 @@ export default function GovernanceDashboard() {
             </button>
 
             <button
+              type="button"
               disabled={busy || !proposal.canVote}
               onClick={() =>
-                performAction(
+                void performAction(
                   (onSubmitted) =>
-                    voteOnProposal(proposal.id, false, onSubmitted),
+                    voteOnProposal(
+                      proposal.id,
+                      false,
+                      onSubmitted
+                    ),
                   "Vote contre enregistré."
                 )
               }
@@ -411,16 +745,28 @@ export default function GovernanceDashboard() {
           </div>
 
           <p>
-            Le vote ne dépense pas tes CFD. Une adresse ne peut voter
-            qu’une fois sur cette proposition.
+            Le vote ne dépense pas tes CFD.
+            Une adresse ne peut voter qu'une fois
+            sur cette proposition.
           </p>
 
+          {/* ---------------------------------------------- */}
+          {/* EXÉCUTER UNE DÉCISION                          */}
+          {/* ---------------------------------------------- */}
+
           <button
-            disabled={busy || !proposal.canAttemptExecution}
+            type="button"
+            disabled={
+              busy ||
+              !proposal.canAttemptExecution
+            }
             onClick={() =>
-              performAction(
+              void performAction(
                 (onSubmitted) =>
-                  executeProposal(proposal.id, onSubmitted),
+                  executeProposal(
+                    proposal.id,
+                    onSubmitted
+                  ),
                 "Décision exécutée."
               )
             }
@@ -429,29 +775,48 @@ export default function GovernanceDashboard() {
           </button>
 
           <p>
-            Le contrat revérifie les conditions au moment de
-            l’exécution. Une proposition adoptée peut devenir
-            inexécutable si la situation de la campagne change.
+            Le contrat vérifie de nouveau toutes les
+            conditions au moment de l'exécution.
+            Une proposition adoptée peut devenir
+            inexécutable si la situation change.
           </p>
 
           <button
+            type="button"
             disabled={busy}
-            onClick={() => loadProposal(proposal.id)}
+            onClick={() =>
+              void loadProposal(proposal.id)
+            }
           >
             Actualiser cette proposition
           </button>
         </article>
       )}
 
-      {busy && <p>Opération en cours…</p>}
+      {/* ================================================== */}
+      {/* MESSAGES                                           */}
+      {/* ================================================== */}
+
+      {busy && (
+        <p role="status">
+          Opération en cours...
+        </p>
+      )}
 
       {message && (
-        <p role="status" style={{ overflowWrap: "anywhere" }}>
+        <p
+          role="status"
+          style={{ overflowWrap: "anywhere" }}
+        >
           {message}
         </p>
       )}
 
-      {error && <p role="alert">{error}</p>}
+      {error && (
+        <p role="alert">
+          {error}
+        </p>
+      )}
     </section>
   );
 }

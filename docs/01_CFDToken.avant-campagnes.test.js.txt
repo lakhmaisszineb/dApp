@@ -1,0 +1,126 @@
+import { expect } from "chai";
+import { network } from "hardhat";
+
+// Connexion à la blockchain simulée par Hardhat.
+// Même méthode que celle utilisée dans les tests J1.
+const { ethers } = await network.getOrCreate();
+
+describe("J2 - CFDToken", function () {
+  let admin;
+  let minter;
+  let contributor;
+  let outsider;
+  let token;
+  let minterRole;
+
+  // Cette préparation est exécutée avant CHAQUE test.
+  // Chaque scénario utilise ainsi un contrat neuf.
+  beforeEach(async function () {
+    // Comptes de test fournis par Hardhat :
+    // admin       : configure les permissions ;
+    // minter      : est autorisé à créer les CFD ;
+    // contributor : reçoit les CFD ;
+    // outsider    : représente un compte non autorisé.
+    [admin, minter, contributor, outsider] =
+      await ethers.getSigners();
+
+    // Déployer CFDToken en transmettant l'adresse
+    // de l'administrateur à son constructeur.
+    token = await ethers.deployContract(
+      "CFDToken",
+      [admin.address]
+    );
+
+    await token.waitForDeployment();
+
+    // Lire l'identifiant du rôle de frappe.
+    minterRole = await token.MINTER_ROLE();
+
+    // L'administrateur attribue explicitement
+    // la permission de frappe au compte minter.
+    await (
+      await token
+        .connect(admin)
+        .grantRole(minterRole, minter.address)
+    ).wait();
+  });
+
+  it("définit le nom, le symbole et 18 décimales", async function () {
+    expect(await token.name()).to.equal(
+      "Crowdfunding Governance Token"
+    );
+
+    expect(await token.symbol()).to.equal("CFD");
+
+    expect(await token.decimals()).to.equal(18n);
+  });
+
+  it("ne crée aucun jeton au déploiement", async function () {
+    expect(await token.totalSupply()).to.equal(0n);
+
+    expect(
+      await token.balanceOf(admin.address)
+    ).to.equal(0n);
+  });
+
+  it("permet au minter de créer 100 CFD", async function () {
+    // Conversion de 100 CFD en petites unités.
+    const amount = ethers.parseUnits("100", 18);
+
+    await (
+      await token
+        .connect(minter)
+        .mint(contributor.address, amount)
+    ).wait();
+
+    // Le contributeur possède les jetons créés.
+    expect(
+      await token.balanceOf(contributor.address)
+    ).to.equal(amount);
+
+    // L'offre totale a augmenté du même montant.
+    expect(await token.totalSupply()).to.equal(amount);
+  });
+
+  it("refuse la frappe par un compte non autorisé", async function () {
+    const amount = ethers.parseUnits("100", 18);
+
+    await expect(
+      token
+        .connect(outsider)
+        .mint(contributor.address, amount)
+    )
+      .to.be.revertedWithCustomError(
+        token,
+        "AccessControlUnauthorizedAccount"
+      )
+      .withArgs(outsider.address, minterRole);
+
+    // Le refus ne doit créer aucun jeton.
+    expect(await token.totalSupply()).to.equal(0n);
+  });
+
+  it("refuse une quantité nulle", async function () {
+    await expect(
+      token
+        .connect(minter)
+        .mint(contributor.address, 0n)
+    ).to.be.revertedWithCustomError(
+      token,
+      "ZeroMintAmount"
+    );
+  });
+
+  it("refuse un destinataire égal à l'adresse nulle", async function () {
+    await expect(
+      token
+        .connect(minter)
+        .mint(ethers.ZeroAddress, 1n)
+    )
+      .to.be.revertedWithCustomError(
+        token,
+        "ERC20InvalidReceiver"
+      )
+      .withArgs(ethers.ZeroAddress);
+  });
+});

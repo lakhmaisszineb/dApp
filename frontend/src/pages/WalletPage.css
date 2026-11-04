@@ -1,0 +1,670 @@
+
+/* =========================================================
+   TIWIZI WALLET - DESIGN CLAIR ET MINIMALISTE
+   ========================================================= */
+
+.tw-wallet {
+  --tw-blue: #315b94;
+  --tw-dark: #19314e;
+  --tw-muted: #718198;
+  --tw-border: #e5eaf1;
+  --tw-soft: #f7f9fc;
+
+  width: 100%;
+  max-width: 1120px;
+  margin: 0 auto;
+  padding: 38px 20px 70px;
+  color: var(--tw-dark);
+}
+
+.tw-wallet *,
+.tw-wallet *::before,
+.tw-wallet *::after {
+  box-sizing: border-box;
+}
+
+.tw-wallet-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 24px;
+  margin-bottom: 30px;
+}
+
+.tw-eyebrow {
+  color: #577db4;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  margin: 0 0 9px;
+}
+
+.tw-wallet-header h1 {
+  font-size: clamp(29px, 4vw, 39px);
+  font-weight: 800;
+  letter-spacing: -1px;
+  line-height: 1.2;
+  margin: 0 0 9px;
+  color: #172e4a;
+}
+
+.tw-wallet-header p:not(.tw-eyebrow) {
+  font-size: 14px;
+  color: var(--tw-muted);
+  line-height: 1.7;
+  margin: 0;
+}
+
+.tw-header-link {
+  color: var(--tw-blue);
+  text-decoration: none;
+  font-weight: 700;
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+.tw-header-link:hover {
+  text-decoration: underline;
+}
+
+/* CARTE ETH */
+
+.tw-balance-card {
+  padding: 32px;
+  border: 1px solid #dbe6f5;
+  border-radius: 20px;
+  background: linear-gradient(
+    115deg,
+    #f1f6ff 0%,
+    #e9f1fd 64%,
+    #e4effc 100%
+  );
+}
+
+.tw-balance-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 20px;
+  align-items: flex-start;
+}
+
+.tw-balance-label {
+  color: #617c9e;
+  font-size: 11px;
+  letter-spacing: 1.6px;
+  font-weight: 800;
+  margin: 0 0 15px;
+}
+
+.tw-balance-head h2 {
+  color: #17365c;
+  font-size: clamp(30px, 5vw, 44px);
+  font-weight: 800;
+  letter-spacing: -1.4px;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.tw-balance-head h2 span {
+  font-size: 19px;
+  margin-left: 8px;
+  font-weight: 600;
+}
+
+.tw-balance-note {
+  color: #6b819f;
+  font-size: 13px;
+  margin: 10px 0 0;
+}
+
+.tw-balance-emblem {
+  display: grid;
+  place-items: center;
+  width: 65px;
+  height: 65px;
+  flex-shrink: 0;
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.73);
+  color: #4a75b2;
+  font-size: 40px;
+  font-weight: 500;
+}
+
+.tw-balance-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 16px;
+  border-top: 1px solid #d3dfef;
+  margin-top: 30px;
+  padding-top: 21px;
+}
+
+.tw-account-details {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 9px;
+  font-size: 13px;
+  color: #46668d;
+  font-weight: 600;
+}
+
+.tw-online-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #47a67d;
+}
+
+.tw-network-pill {
+  background: #dbebfa;
+  padding: 5px 9px;
+  border-radius: 30px;
+  color: #41658d;
+  font-size: 11px;
+}
+
+.tw-balance-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.tw-balance-buttons button {
+  padding: 10px 14px;
+  border: 1px solid #c8d9ed;
+  border-radius: 9px;
+  background: #ffffff;
+  color: #365b87;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.tw-balance-buttons button:hover {
+  background: #f7fbff;
+}
+
+.tw-balance-buttons button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* SECTIONS */
+
+.tw-section {
+  margin-top: 36px;
+}
+
+.tw-section-heading {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 19px;
+}
+
+.tw-section-heading h2 {
+  color: #1a304c;
+  font-size: 22px;
+  letter-spacing: -0.5px;
+  margin: 0;
+}
+
+.tw-section-heading p:not(.tw-eyebrow) {
+  color: var(--tw-muted);
+  font-size: 13px;
+  margin: 8px 0 0;
+}
+
+.tw-stats-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.tw-stat-card {
+  background: #ffffff;
+  border: 1px solid var(--tw-border);
+  border-radius: 15px;
+  padding: 20px 18px;
+  min-width: 0;
+}
+
+.tw-stat-top {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+
+.tw-stat-icon {
+  width: 31px;
+  height: 31px;
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+  background: #eff4fa;
+  border-radius: 9px;
+  color: #547bb0;
+  font-weight: 700;
+  font-size: 17px;
+}
+
+.tw-stat-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: #6d7e93;
+}
+
+.tw-stat-number {
+  color: #1d3654;
+  font-size: clamp(23px, 2.8vw, 29px);
+  font-weight: 800;
+  letter-spacing: -0.5px;
+  margin-top: 16px;
+  overflow-wrap: anywhere;
+}
+
+.tw-stat-number span {
+  font-size: 12px;
+  color: #6d7e93;
+  font-weight: 600;
+  margin-left: 3px;
+}
+
+.tw-stat-detail {
+  color: #8996a7;
+  font-size: 11px;
+  line-height: 1.5;
+  margin: 9px 0 0;
+}
+
+/* CAMPAGNES / HOLDINGS */
+
+.tw-count {
+  background: #edf3fa;
+  color: #55759d;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 7px 13px;
+  border-radius: 30px;
+}
+
+.tw-project-grid {
+  display: grid;
+  gap: 14px;
+}
+
+.tw-project {
+  background: #ffffff;
+  border: 1px solid var(--tw-border);
+  border-radius: 17px;
+  padding: 23px;
+}
+
+.tw-project-main {
+  display: flex;
+  gap: 15px;
+  align-items: flex-start;
+}
+
+.tw-project-icon {
+  display: grid;
+  place-items: center;
+  width: 48px;
+  height: 48px;
+  flex-shrink: 0;
+  border-radius: 13px;
+  background: #edf4fd;
+  color: #567cad;
+  font-size: 25px;
+}
+
+.tw-project-details {
+  flex: 1;
+  min-width: 0;
+}
+
+.tw-project-title-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.tw-project-title-row h3 {
+  margin: 0;
+  font-size: 16px;
+  color: #1d3450;
+}
+
+.tw-project-details p {
+  color: #8694a7;
+  font-size: 12px;
+  margin: 6px 0 0;
+}
+
+.tw-project-details .tw-project-date {
+  color: #647b98;
+}
+
+.tw-status {
+  padding: 5px 10px;
+  border-radius: 20px;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.tw-status-active {
+  color: #376da7;
+  background: #eaf3ff;
+}
+
+.tw-status-success {
+  color: #287955;
+  background: #e8f7ee;
+}
+
+.tw-status-finished {
+  color: #8b6b42;
+  background: #f8f2e8;
+}
+
+.tw-project-balances {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 18px;
+  padding: 20px 0;
+  margin-top: 19px;
+  border-top: 1px solid #eef1f5;
+  border-bottom: 1px solid #eef1f5;
+}
+
+.tw-project-balances div {
+  display: grid;
+  gap: 9px;
+  min-width: 0;
+}
+
+.tw-project-balances span {
+  font-size: 12px;
+  color: #8a97a8;
+}
+
+.tw-project-balances strong {
+  font-size: 16px;
+  color: #213955;
+  overflow-wrap: anywhere;
+}
+
+.tw-project-actions {
+  display: flex;
+  gap: 18px;
+  align-items: center;
+  flex-wrap: wrap;
+  margin-top: 19px;
+}
+
+.tw-link-primary {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid #d5e3f3;
+  border-radius: 9px;
+  background: #edf4fd;
+  color: #2e5b91;
+  padding: 11px 15px;
+  font-size: 12px;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.tw-link-primary:hover {
+  background: #e2efff;
+}
+
+.tw-link-text {
+  font-size: 12px;
+  font-weight: 700;
+  color: #5079a8;
+  text-decoration: none;
+}
+
+.tw-link-text:hover {
+  text-decoration: underline;
+}
+
+.tw-notice {
+  padding: 12px 15px;
+  border-radius: 10px;
+  margin: 16px 0 0;
+  background: #fff7ed;
+  color: #9a6327;
+  font-size: 12px;
+}
+
+.tw-notice-green {
+  background: #eef8f0;
+  color: #33734f;
+}
+
+/* GOUVERNANCE */
+
+.tw-governance-box {
+  display: flex;
+  align-items: center;
+  gap: 19px;
+  margin-top: 35px;
+  padding: 25px;
+  border: 1px solid #dce7e0;
+  border-radius: 17px;
+  background: #f3f8f5;
+}
+
+.tw-governance-icon {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 49px;
+  height: 49px;
+  border-radius: 14px;
+  background: #e1eee5;
+  color: #4a8665;
+  font-size: 25px;
+}
+
+.tw-governance-copy {
+  flex: 1;
+  min-width: 0;
+}
+
+.tw-governance-copy h2 {
+  margin: 0 0 6px;
+  font-size: 17px;
+  color: #254834;
+}
+
+.tw-governance-copy p {
+  margin: 0;
+  color: #6c8576;
+  font-size: 12px;
+  line-height: 1.7;
+}
+
+/* ÉTATS */
+
+.tw-empty-panel,
+.tw-empty-projects {
+  padding: 42px 24px;
+  border: 1px dashed #d5dfea;
+  border-radius: 17px;
+  text-align: center;
+  background: #fbfcfe;
+}
+
+.tw-empty-panel h2,
+.tw-empty-projects h3 {
+  color: #213955;
+  margin: 12px 0;
+}
+
+.tw-empty-panel p,
+.tw-empty-projects p {
+  color: #8090a4;
+  font-size: 13px;
+  line-height: 1.7;
+  max-width: 500px;
+  margin: 0 auto 18px;
+}
+
+.tw-empty-symbol {
+  font-size: 35px;
+  color: #7c9cc4;
+}
+
+.tw-connection-area {
+  max-width: 550px;
+  margin: 22px auto 0;
+  text-align: left;
+}
+
+.tw-error {
+  padding: 14px 18px;
+  background: #fff3f0;
+  color: #a83b32;
+  border-radius: 10px;
+  border: 1px solid #f3d2cc;
+  margin-top: 20px;
+  font-size: 13px;
+}
+
+.tw-loading {
+  margin: 24px 0;
+  color: #5c789c;
+  font-size: 13px;
+}
+
+.tw-footer-note {
+  color: #8a98aa;
+  font-size: 11px;
+  line-height: 1.7;
+  margin-top: 20px;
+}
+
+.tw-technical-details {
+  border: 1px solid var(--tw-border);
+  border-radius: 13px;
+  background: #ffffff;
+  margin-top: 35px;
+}
+
+.tw-technical-details summary {
+  padding: 17px 21px;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 700;
+  color: #617995;
+}
+
+.tw-technical-content {
+  display: grid;
+  gap: 18px;
+  padding: 20px;
+  border-top: 1px solid #edf1f5;
+}
+
+.tw-technical-content .wallet-panel {
+  max-width: 100%;
+}
+
+.tw-bottom-nav {
+  display: flex;
+  gap: 20px;
+  flex-wrap: wrap;
+  margin-top: 30px;
+  padding-top: 22px;
+  border-top: 1px solid var(--tw-border);
+}
+
+.tw-bottom-nav a {
+  text-decoration: none;
+  color: #5477a2;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.tw-bottom-nav a:hover {
+  text-decoration: underline;
+}
+
+/* RESPONSIVE */
+
+@media (max-width: 900px) {
+  .tw-stats-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .tw-governance-box {
+    flex-wrap: wrap;
+  }
+}
+
+@media (max-width: 600px) {
+  .tw-wallet {
+    padding: 24px 14px 50px;
+  }
+
+  .tw-wallet-header {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .tw-balance-card {
+    padding: 22px;
+  }
+
+  .tw-balance-emblem {
+    width: 48px;
+    height: 48px;
+    font-size: 30px;
+  }
+
+  .tw-stats-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+  }
+
+  .tw-stat-card {
+    padding: 14px;
+  }
+
+  .tw-stat-label {
+    font-size: 11px;
+  }
+
+  .tw-project {
+    padding: 17px;
+  }
+
+  .tw-project-balances {
+    grid-template-columns: 1fr 1fr;
+    gap: 18px;
+  }
+
+  .tw-project-balances div:last-child {
+    grid-column: 1 / -1;
+  }
+
+  .tw-section-heading h2 {
+    font-size: 20px;
+  }
+
+  .tw-governance-box {
+    padding: 19px;
+  }
+}

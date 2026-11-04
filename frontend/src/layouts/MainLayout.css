@@ -1,0 +1,323 @@
+
+/* ====================================================
+   TIWIZI — Navigation principale
+   Thème : bleu ardoise, blanc, gris clair
+   Icônes SVG Lucide
+   ==================================================== */
+
+.tl-header {
+  position: relative;
+  z-index: 100;
+  background: #ffffff;
+  border-bottom: 1px solid #e5ebf3;
+}
+
+.tl-header-inner {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  min-height: 76px;
+  max-width: 1320px;
+  margin: 0 auto;
+}
+
+.tl-brand {
+  flex-shrink: 0;
+  text-decoration: none;
+}
+
+.tl-nav {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 1;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.tl-nav-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  padding: 11px 14px;
+  border-radius: 11px;
+  color: #536882;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.3;
+  text-decoration: none;
+  transition:
+    background-color 0.2s ease,
+    color 0.2s ease;
+}
+
+.tl-nav-link:hover {
+  background: #eef4fb;
+  color: #235a97;
+  text-decoration: none;
+}
+
+.tl-nav-link.tl-nav-active {
+  background: #e9f1fc;
+  color: #245e9c;
+}
+
+.tl-nav-link svg,
+.tl-menu-link svg {
+  flex-shrink: 0;
+}
+
+.tl-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-shrink: 0;
+}
+
+/* Menu personnel */
+
+.tl-account-menu {
+  position: relative;
+}
+
+.tl-account-trigger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  min-height: 46px;
+  padding: 10px 14px;
+  border: 1px solid #dfe7f1;
+  border-radius: 12px;
+  background: #f8fafc;
+  color: #2b4b70;
+  font-size: 13px;
+  font-weight: 650;
+  white-space: nowrap;
+  cursor: pointer;
+  list-style: none;
+}
+
+.tl-account-trigger::-webkit-details-marker {
+  display: none;
+}
+
+.tl-account-trigger::marker {
+  content: "";
+}
+
+.tl-account-trigger:hover {
+  background: #eaf2fb;
+}
+
+.tl-account-trigger:focus-visible {
+  outline: 3px solid #91baf0;
+  outline-offset: 3px;
+}
+
+.tl-account-name {
+  max-width: 135px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.tl-account-panel {
+  position: absolute;
+  top: calc(100% + 12px);
+  right: 0;
+  z-index: 210;
+  width: 260px;
+  padding: 8px;
+  border-radius: 15px;
+  border: 1px solid #e0e7f0;
+  background: #ffffff;
+  box-shadow: 0 16px 42px rgba(30, 49, 77, 0.14);
+}
+
+.tl-account-heading {
+  display: grid;
+  gap: 5px;
+  padding: 13px 12px 14px;
+  margin-bottom: 5px;
+  border-bottom: 1px solid #edf1f6;
+}
+
+.tl-account-heading strong {
+  color: #263e5b;
+  font-size: 13px;
+}
+
+.tl-account-heading span {
+  color: #8290a1;
+  font-size: 11px;
+}
+
+.tl-menu-link {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  border-radius: 10px;
+  color: #425c79;
+  font-size: 13px;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.tl-menu-link:hover {
+  color: #205b9f;
+  background: #eff5fc;
+  text-decoration: none;
+}
+
+.tl-menu-hint {
+  margin: 8px 12px;
+  color: #8897a9;
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+/* Empêcher l'écrasement par certains styles globaux */
+
+.tl-nav .tl-nav-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+}
+
+.tl-header-actions .tn-trigger {
+  width: 52px;
+  height: 52px;
+  min-width: 52px;
+}
+
+.tl-header-actions .tn-bell-icon {
+  width: 28px;
+  height: 28px;
+}
+
+/* Tablettes */
+
+@media (max-width: 1080px) {
+  .tl-header-inner {
+    gap: 14px;
+  }
+
+  .tl-nav {
+    gap: 3px;
+  }
+
+  .tl-nav-link {
+    padding: 10px;
+    font-size: 12px;
+  }
+}
+
+/* Mobiles */
+
+@media (max-width: 760px) {
+  .tl-header-inner {
+    flex-wrap: wrap;
+    justify-content: space-between;
+    padding-top: 12px;
+    padding-bottom: 12px;
+  }
+
+  .tl-nav {
+    order: 3;
+    width: 100%;
+    flex: 0 0 100%;
+    justify-content: flex-start;
+    overflow-x: auto;
+    flex-wrap: nowrap;
+    padding: 4px 0;
+  }
+
+  .tl-nav-link {
+    white-space: nowrap;
+  }
+
+  .tl-header-actions {
+    margin-left: auto;
+  }
+
+  .tl-account-name {
+    display: none;
+  }
+
+  .tl-account-trigger {
+    min-width: 46px;
+    padding: 10px;
+  }
+
+  .tl-account-panel {
+    width: min(270px, calc(100vw - 28px));
+  }
+
+  .tl-header-actions .tn-trigger {
+    width: 46px;
+    height: 46px;
+    min-width: 46px;
+  }
+
+  .tl-header-actions .tn-bell-icon {
+    width: 25px;
+    height: 25px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tl-nav-link,
+  .tl-account-trigger {
+    transition: none;
+  }
+}
+
+/* =========================================
+   TIWIZI — Menu responsive
+   ========================================= */
+
+.tl-mobile-toggle {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border: 1px solid #dfe7f1;
+  border-radius: 11px;
+  background: #f8fafc;
+  color: #2c547d;
+  cursor: pointer;
+}
+
+.tl-mobile-toggle:hover {
+  background: #edf4fc;
+}
+
+@media (max-width: 760px) {
+  .tl-mobile-toggle {
+    display: inline-flex;
+  }
+
+  .tl-nav {
+    display: none !important;
+    order: 3;
+    flex: 0 0 100%;
+    width: 100%;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 5px;
+    overflow: visible;
+    padding: 12px 0;
+  }
+
+  .tl-nav.tl-nav-mobile-open {
+    display: flex !important;
+  }
+
+  .tl-nav .tl-nav-link {
+    justify-content: flex-start;
+    padding: 13px 15px;
+  }
+}

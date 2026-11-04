@@ -1,0 +1,20 @@
+{
+  "schemaVersion": "1.0",
+  "title": "Titre de notre campagne",
+  "summary": "Une courte présentation de la campagne.",
+  "description": "Une description détaillée du projet, de son utilité et de son déroulement.",
+  "category": "Education",
+  "image": "ipfs://<CID-de-image>",
+  "fundsUsage": [
+    {
+      "label": "Achat du matériel",
+      "description": "Description du matériel nécessaire."
+    },
+    {
+      "label": "Réalisation",
+      "description": "Description des dépenses prévues."
+    }
+  ],
+  "documents": [],
+  "links": []
+}
