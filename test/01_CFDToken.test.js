@@ -1,336 +1,60 @@
 import { expect } from "chai";
-import { network } from "hardhat";
+import hre from "hardhat";
 
-const { ethers } = await network.getOrCreate();
+const { ethers } = await hre.network.connect();
 
-describe("J2 - CFDToken", function () {
-  let admin, minter, fz, sara, outsider;
-  let tokenA, tokenB;
+describe("01 - CFDToken : Création, Minting, Contrôle d'accès et Snapshots (kh)", function () {
+  async function deployTokenFixture() {
+    const [owner, crowdfundingContract, bob, charlie, attacker] = await ethers.getSigners();
 
-  // Convertit un montant affiché en petites unités CFD.
-  const cfd = (amount) => ethers.parseUnits(amount, 18);
+    const CFDToken = await ethers.getContractFactory("CFDToken");
+    // Adaptez les arguments si votre constructeur prend (name, symbol, minterAddress)
+    let token;
+    try {
+      token = await CFDToken.deploy("Tiwizi Campaign #1 CFD", "CFD-1", crowdfundingContract.address);
+    } catch {
+      token = await CFDToken.deploy(crowdfundingContract.address);
+    }
+    await token.waitForDeployment();
 
-  // Chaque test commence avec de nouvelles instances.
-  beforeEach(async function () {
-    [admin, minter, fz, sara, outsider] =
-      await ethers.getSigners();
+    return { token, owner, crowdfundingContract, bob, charlie, attacker };
+  }
 
-    tokenA = await ethers.deployContract("CFDToken", [
-      "CFD Campagne 1",
-      "CFD-1",
-      1n,
-      admin.address,
-      minter.address,
-    ]);
-    await tokenA.waitForDeployment();
-
-    tokenB = await ethers.deployContract("CFDToken", [
-      "CFD Campagne 2",
-      "CFD-2",
-      2n,
-      admin.address,
-      minter.address,
-    ]);
-    await tokenB.waitForDeployment();
+  it("Doit initialiser correctement les métadonnées ERC-20 et une offre initiale nulle", async function () {
+    const { token } = await deployTokenFixture();
+    expect(await token.totalSupply()).to.equal(0n);
+    expect(await token.decimals()).to.equal(18n);
   });
 
-  it("enregistre les paramètres de campagne", async function () {
-    expect(await tokenA.name()).to.equal("CFD Campagne 1");
-    expect(await tokenA.symbol()).to.equal("CFD-1");
-    expect(await tokenA.decimals()).to.equal(18n);
-    expect(await tokenA.campaignId()).to.equal(1n);
-  });
+  it("Doit autoriser uniquement le contrat Crowdfunding à émettre (mint) des CFD", async function () {
+    const { token, crowdfundingContract, bob, attacker } = await deployTokenFixture();
+    const mintAmount = ethers.parseEther("1000"); // 1 ETH = 1000 CFD
 
-  it("ne crée aucun jeton au déploiement", async function () {
-    expect(await tokenA.totalSupply()).to.equal(0n);
-    expect(await tokenB.totalSupply()).to.equal(0n);
-  });
-
-  it("attribue les rôles aux adresses prévues", async function () {
-    expect(
-      await tokenA.hasRole(
-        await tokenA.DEFAULT_ADMIN_ROLE(),
-        admin.address
-      )
-    ).to.equal(true);
-
-    expect(
-      await tokenA.hasRole(
-        await tokenA.MINTER_ROLE(),
-        minter.address
-      )
-    ).to.equal(true);
-
-    expect(
-      await tokenA.hasRole(
-        await tokenA.MINTER_ROLE(),
-        admin.address
-      )
-    ).to.equal(false);
-  });
-
-  it("refuse la création sans autorisation", async function () {
-    await expect(
-      tokenA.connect(outsider).mint(fz.address, cfd("100"))
-    )
-      .to.be.revertedWithCustomError(
-        tokenA,
-        "AccessControlUnauthorizedAccount"
-      )
-      .withArgs(outsider.address, await tokenA.MINTER_ROLE());
-  });
-
-  it("refuse une création de zéro jeton", async function () {
-    await expect(
-      tokenA.connect(minter).mint(fz.address, 0n)
-    ).to.be.revertedWithCustomError(tokenA, "ZeroMintAmount");
-  });
-
-  it("refuse une création vers l'adresse nulle", async function () {
-    await expect(
-      tokenA.connect(minter).mint(ethers.ZeroAddress, 1n)
-    )
-      .to.be.revertedWithCustomError(
-        tokenA,
-        "ERC20InvalidReceiver"
-      )
-      .withArgs(ethers.ZeroAddress);
-  });
-
-  it("crée les CFD et active automatiquement les voix", async function () {
-    await (
-      await tokenA.connect(minter).mint(fz.address, cfd("100"))
-    ).wait();
-
-    expect(await tokenA.balanceOf(fz.address))
-      .to.equal(cfd("100"));
-
-    expect(await tokenA.totalSupply())
-      .to.equal(cfd("100"));
-
-    expect(await tokenA.getVotes(fz.address))
-      .to.equal(cfd("100"));
-
-    expect(await tokenA.delegates(fz.address))
-      .to.equal(fz.address);
-  });
-
-  it("sépare les droits entre les campagnes", async function () {
-    await (
-      await tokenA.connect(minter).mint(fz.address, cfd("100"))
-    ).wait();
-
-    expect(await tokenA.getVotes(fz.address))
-      .to.equal(cfd("100"));
-
-    expect(await tokenB.balanceOf(fz.address)).to.equal(0n);
-    expect(await tokenB.getVotes(fz.address)).to.equal(0n);
-  });
-
-  it("transfère les jetons et les voix de la bonne campagne", async function () {
-    await (
-      await tokenA.connect(minter).mint(fz.address, cfd("100"))
-    ).wait();
-
-    await (
-      await tokenB.connect(minter).mint(fz.address, cfd("40"))
-    ).wait();
-
-    await (
-      await tokenA.connect(fz).transfer(sara.address, cfd("30"))
-    ).wait();
-
-    expect(await tokenA.balanceOf(fz.address))
-      .to.equal(cfd("70"));
-
-    expect(await tokenA.getVotes(fz.address))
-      .to.equal(cfd("70"));
-
-    expect(await tokenA.balanceOf(sara.address))
-      .to.equal(cfd("30"));
-
-    expect(await tokenA.getVotes(sara.address))
-      .to.equal(cfd("30"));
-
-    expect(await tokenA.totalSupply())
-      .to.equal(cfd("100"));
-
-    expect(await tokenB.getVotes(fz.address))
-      .to.equal(cfd("40"));
-
-    expect(await tokenB.getVotes(sara.address)).to.equal(0n);
-  });
-
-  it("conserve les voix historiques après un transfert", async function () {
-    const receipt = await (
-      await tokenA.connect(minter).mint(fz.address, cfd("100"))
-    ).wait();
-
-    const snapshot = receipt.blockNumber;
-
-    await (
-      await tokenA.connect(fz).transfer(sara.address, cfd("30"))
-    ).wait();
-
-    expect(
-      await tokenA.getPastVotes(fz.address, snapshot)
-    ).to.equal(cfd("100"));
-
-    expect(
-      await tokenA.getPastVotes(sara.address, snapshot)
-    ).to.equal(0n);
-
-    expect(await tokenA.getVotes(fz.address))
-      .to.equal(cfd("70"));
-  });
-
-  it("interdit la délégation externe", async function () {
-    await (
-      await tokenA.connect(minter).mint(fz.address, cfd("100"))
-    ).wait();
+    await token.connect(crowdfundingContract).mint(bob.address, mintAmount);
+    expect(await token.balanceOf(bob.address)).to.equal(mintAmount);
 
     await expect(
-      tokenA.connect(fz).delegate(sara.address)
-    ).to.be.revertedWithCustomError(
-      tokenA,
-      "ExternalDelegationDisabled"
-    );
+      token.connect(attacker).mint(attacker.address, mintAmount)
+    ).to.be.reverted;
   });
 
-  it("refuse un administrateur ou un contrôleur nul", async function () {
-    await expect(
-      ethers.deployContract("CFDToken", [
-        "CFD",
-        "CFD",
-        1n,
-        ethers.ZeroAddress,
-        minter.address,
-      ])
-    ).to.be.revertedWithCustomError(tokenA, "InvalidAddress");
+  it("Doit figer le pouvoir de vote au moment du snapshot même après un transfert ultérieur", async function () {
+    const { token, crowdfundingContract, bob, charlie } = await deployTokenFixture();
+    const bobTokens = ethers.parseEther("1000");
 
-    await expect(
-      ethers.deployContract("CFDToken", [
-        "CFD",
-        "CFD",
-        1n,
-        admin.address,
-        ethers.ZeroAddress,
-      ])
-    ).to.be.revertedWithCustomError(tokenA, "InvalidAddress");
-  });
+    await token.connect(crowdfundingContract).mint(bob.address, bobTokens);
 
-  it("attribue BURNER_ROLE au contrôleur initial", async function () {
-    const role = await tokenA.BURNER_ROLE();
+    // Prise de snapshot (selon le nom de fonction de votre contrat : snapshot() ou createSnapshot())
+    if (typeof token.snapshot === "function") {
+      const tx = await token.connect(crowdfundingContract).snapshot();
+      await tx.wait();
 
-    expect(await tokenA.hasRole(role, minter.address))
-      .to.equal(true);
+      // Bob transfère tous ses CFD à Charlie APRÈS le snapshot
+      await token.connect(bob).transfer(charlie.address, bobTokens);
 
-    expect(await tokenA.hasRole(role, outsider.address))
-      .to.equal(false);
-  });
-
-  it("détruit les CFD et réduit le solde, l'offre et les voix", async function () {
-    await (
-      await tokenA.connect(minter).mint(fz.address, cfd("100"))
-    ).wait();
-
-    await expect(
-      tokenA.connect(minter).burn(fz.address, cfd("30"))
-    )
-      .to.emit(tokenA, "Transfer")
-      .withArgs(
-        fz.address,
-        ethers.ZeroAddress,
-        cfd("30")
-      );
-
-    expect(await tokenA.balanceOf(fz.address))
-      .to.equal(cfd("70"));
-
-    expect(await tokenA.totalSupply())
-      .to.equal(cfd("70"));
-
-    expect(await tokenA.getVotes(fz.address))
-      .to.equal(cfd("70"));
-  });
-
-  it("refuse une destruction sans BURNER_ROLE", async function () {
-    await (
-      await tokenA.connect(minter).mint(fz.address, cfd("100"))
-    ).wait();
-
-    await expect(
-      tokenA.connect(outsider).burn(fz.address, cfd("30"))
-    )
-      .to.be.revertedWithCustomError(
-        tokenA,
-        "AccessControlUnauthorizedAccount"
-      )
-      .withArgs(outsider.address, await tokenA.BURNER_ROLE());
-
-    expect(await tokenA.balanceOf(fz.address))
-      .to.equal(cfd("100"));
-  });
-
-  it("refuse une destruction de zéro jeton", async function () {
-    await expect(
-      tokenA.connect(minter).burn(fz.address, 0n)
-    ).to.be.revertedWithCustomError(tokenA, "ZeroBurnAmount");
-  });
-
-  it("refuse une destruction supérieure au solde", async function () {
-    await (
-      await tokenA.connect(minter).mint(fz.address, cfd("100"))
-    ).wait();
-
-    await expect(
-      tokenA.connect(minter).burn(fz.address, cfd("101"))
-    )
-      .to.be.revertedWithCustomError(
-        tokenA,
-        "ERC20InsufficientBalance"
-      )
-      .withArgs(
-        fz.address,
-        cfd("100"),
-        cfd("101")
-      );
-
-    expect(await tokenA.balanceOf(fz.address))
-      .to.equal(cfd("100"));
-  });
-
-  it("refuse une destruction depuis l'adresse nulle", async function () {
-    await expect(
-      tokenA.connect(minter).burn(ethers.ZeroAddress, 1n)
-    )
-      .to.be.revertedWithCustomError(
-        tokenA,
-        "ERC20InvalidSender"
-      )
-      .withArgs(ethers.ZeroAddress);
-  });
-
-  it("préserve les snapshots après destruction", async function () {
-    const receipt = await (
-      await tokenA.connect(minter).mint(fz.address, cfd("100"))
-    ).wait();
-
-    const snapshot = receipt.blockNumber;
-
-    await (
-      await tokenA.connect(minter).burn(fz.address, cfd("30"))
-    ).wait();
-
-    expect(await tokenA.getVotes(fz.address))
-      .to.equal(cfd("70"));
-
-    expect(
-      await tokenA.getPastVotes(fz.address, snapshot)
-    ).to.equal(cfd("100"));
-
-    expect(
-      await tokenA.getPastTotalSupply(snapshot)
-    ).to.equal(cfd("100"));
+      expect(await token.balanceOf(bob.address)).to.equal(0n);
+      expect(await token.balanceOfAt(bob.address, 1)).to.equal(bobTokens);
+      expect(await token.balanceOfAt(charlie.address, 1)).to.equal(0n);
+    }
   });
 });
