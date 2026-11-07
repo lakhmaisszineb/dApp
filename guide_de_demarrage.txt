@@ -2,3 +2,7 @@ npx hardhat node
 npx hardhat run .\scripts\deploy-local.js --network localhost
 npm --prefix backend start
 npm --prefix frontend run dev -- --port 5173 --strictPort
+
+// terminal akhor:
+npx hardhat build
+npx hardhat run scripts/deploy-sepolia.js --network sepolia
