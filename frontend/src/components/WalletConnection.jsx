@@ -101,7 +101,7 @@ export default function WalletConnection() {
               >
                 {busy
                   ? "Changement en cours…"
-                  : "Utiliser le réseau de Tiwizi"}
+                  : "Utiliser le réseau de TAAZUR"}
               </button>
             </div>
           )}

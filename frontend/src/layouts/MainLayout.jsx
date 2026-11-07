@@ -53,17 +53,17 @@ import "./MainLayout.css";
 // ============================================================
 
 const PAGE_TITLES = {
-  "/": "Accueil — TIWIZI",
-  "/campagnes": "Explorer les projets — TIWIZI",
-  "/creer": "Créer mon projet — TIWIZI",
-  "/contribuer": "Contribuer — TIWIZI",
-  "/connexion": "Connexion MetaMask — TIWIZI",
-  "/gouvernance": "Gouvernance — TIWIZI",
-  "/portefeuille": "Mon portefeuille — TIWIZI",
-  "/mon-espace": "Mon espace — TIWIZI",
-  "/transferer-cfd": "Transférer mes CFD — TIWIZI",
-  "/admin": "Administration — TIWIZI",
-  "/multisig": "Multisignature — TIWIZI",
+  "/": "Accueil — TAAZUR",
+  "/campagnes": "Explorer les projets — TAAZUR",
+  "/creer": "Créer mon projet — TAAZUR",
+  "/contribuer": "Contribuer — TAAZUR",
+  "/connexion": "Connexion MetaMask — TAAZUR",
+  "/gouvernance": "Gouvernance — TAAZUR",
+  "/portefeuille": "Mon portefeuille — TAAZUR",
+  "/mon-espace": "Mon espace — TAAZUR",
+  "/transferer-cfd": "Transférer mes CFD — TAAZUR",
+  "/admin": "Administration — TAAZUR",
+  "/multisig": "Multisignature — TAAZUR",
 };
 
 // ============================================================

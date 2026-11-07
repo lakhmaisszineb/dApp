@@ -43,7 +43,7 @@ export default function TiwiziHome() {
           </h1>
 
           <p className="tiwizi-hero-description">
-            Tiwizi rapproche les personnes qui portent une
+            TAAZUR rapproche les personnes qui portent une
             idée et celles qui souhaitent la faire avancer.
             Découvrez les projets, soutenez ceux qui vous
             parlent et participez à leurs décisions.

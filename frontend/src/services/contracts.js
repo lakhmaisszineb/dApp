@@ -439,7 +439,7 @@ export async function contributeToCampaign(
   // - campagne gelée par la gouvernance.
   if (paused) {
     throw new Error(
-      "TIWIZI est temporairement suspendue pour des raisons de sécurité."
+      "TAAZUR est temporairement suspendue pour des raisons de sécurité."
     );
   }
 

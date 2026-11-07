@@ -27,7 +27,7 @@ function ProjectCard({ project }) {
           />
         ) : (
           <div className="project-image-placeholder">
-            <span>tiwizi</span>
+            <span>taazur</span>
             <p>Une idée à faire grandir.</p>
           </div>
         )}

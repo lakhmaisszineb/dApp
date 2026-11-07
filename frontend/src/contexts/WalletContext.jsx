@@ -162,7 +162,7 @@ export function WalletProvider({ children }) {
   async function connect() {
     if (!wallet) {
       setError(
-        "Ouvrez Tiwizi dans un navigateur disposant de MetaMask."
+        "Ouvrez TAAZUR dans un navigateur disposant de MetaMask."
       );
 
       return;
@@ -247,7 +247,7 @@ export function WalletProvider({ children }) {
               chainName:
                 EXPECTED_CHAIN_ID === 11155111n
                   ? "Sepolia"
-                  : "Réseau Tiwizi",
+                  : "Réseau TAAZUR",
 
               nativeCurrency: {
                 name: "Ether",
@@ -305,7 +305,7 @@ export function WalletProvider({ children }) {
 
     if (BigInt(network) !== EXPECTED_CHAIN_ID) {
       throw new Error(
-        "Sélectionnez le réseau utilisé par Tiwizi."
+        "Sélectionnez le réseau utilisé par TAAZUR."
       );
     }
 

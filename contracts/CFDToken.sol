@@ -71,6 +71,11 @@ contract CFDToken is ERC20, ERC20Permit, ERC20Votes, AccessControl {
     /// @notice Tentative de délégation des voix à une autre adresse.
     error ExternalDelegationDisabled();
 
+    // Correction issue de l'analyse manuelle du rapport Slither.
+    // Garantit la divisibilite des soldes CFD pour le remboursement.
+    uint256 public constant TRANSFER_UNIT = 1000;
+    error InvalidTransferGranularity(uint256 amount);
+
     // =============================================================
     //                         CONSTRUCTEUR
     // =============================================================
@@ -195,6 +200,9 @@ contract CFDToken is ERC20, ERC20Permit, ERC20Votes, AccessControl {
      * Après une réception positive, le destinataire est automatiquement
      * délégué à lui-même s'il n'a pas encore de délégation.
      */
+
+     // Ajout de la correction signalé par slither
+    
     function _update(
         address from,
         address to,
@@ -203,8 +211,20 @@ contract CFDToken is ERC20, ERC20Permit, ERC20Votes, AccessControl {
         internal
         override(ERC20, ERC20Votes)
     {
+        // Vérifier les transferts entre utilisateurs.
+        // Le mint et le burn sont exclus de cette condition.
+        if (
+            from != address(0) &&
+            to != address(0) &&
+            value % TRANSFER_UNIT != 0
+        ) {
+            revert InvalidTransferGranularity(value);
+        }
+
+        // Conserver les mécanismes ERC20 et ERC20Votes.
         super._update(from, to, value);
 
+        // Activer automatiquement les voix du destinataire.
         if (
             to != address(0) &&
             value > 0 &&
@@ -213,6 +233,7 @@ contract CFDToken is ERC20, ERC20Permit, ERC20Votes, AccessControl {
             _delegate(to, to);
         }
     }
+
 
     /**
      * @dev Autorise uniquement la délégation à soi-même.

@@ -366,7 +366,7 @@ export default function ProjectDetailsPage() {
         <>
           <header className="project-detail-heading">
             <p className="tiwizi-overline">
-              {project.category || "Un projet Tiwizi"}
+              {project.category || "Un projet TAAZUR"}
             </p>
 
             <h1>{project.title}</h1>

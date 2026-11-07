@@ -171,7 +171,7 @@ export default function ConnectWalletPage() {
           </h1>
 
           <p className="tw-auth-description">
-            Rejoignez la communauté TIWIZI.
+            Rejoignez la communauté TAAZUR.
             Connectez votre portefeuille pour
             soutenir des initiatives, lancer
             vos propres campagnes et participer
@@ -202,7 +202,7 @@ export default function ConnectWalletPage() {
             <LockKeyhole size={17} />
             <span>
               Votre clé privée reste dans votre portefeuille.
-              TIWIZI ne vous la demande jamais.
+              TAAZUR ne vous la demande jamais.
             </span>
           </div>
         </section>
@@ -229,7 +229,7 @@ export default function ConnectWalletPage() {
             <p>
               Une connexion simple et sécurisée
               pour utiliser les fonctionnalités
-              Web3 de TIWIZI.
+              Web3 de TAAZUR.
             </p>
           </div>
 
@@ -316,7 +316,7 @@ export default function ConnectWalletPage() {
                   <strong>Réseau incorrect</strong>
 
                   <p>
-                    Sélectionnez le réseau TIWIZI
+                    Sélectionnez le réseau TAAZUR
                     configuré dans votre portefeuille.
                   </p>
                 </div>

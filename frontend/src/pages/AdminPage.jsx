@@ -182,7 +182,7 @@ export default function AdminPage() {
 
     const messages = {
       pause: "Déclencher une pause d'urgence ?",
-      resume: "Réactiver TIWIZI avant l'expiration ?",
+      resume: "Réactiver TAAZUR avant l'expiration ?",
       expire: "Clôturer la pause expirée ?",
     };
 
@@ -247,14 +247,14 @@ export default function AdminPage() {
       }}
     >
       <p style={{ color: "#64748b" }}>
-        TIWIZI / Administration / Sécurité
+        TAAZUR / Administration / Sécurité
       </p>
 
       <h1>Supervision et circuit breaker</h1>
 
       <p>
         Le circuit breaker protège les opérations sensibles
-        de TIWIZI en cas d'incident. La pause est limitée
+        de TAAZUR en cas d'incident. La pause est limitée
         à 24 heures et les échéances des campagnes sont
         compensées selon les règles du smart contract.
       </p>
@@ -302,7 +302,7 @@ export default function AdminPage() {
           {dashboard && (
             <>
               <div style={panelStyle}>
-                <h2>État de TIWIZI</h2>
+                <h2>État de TAAZUR</h2>
 
                 <p>
                   <strong>Statut : </strong>
@@ -468,7 +468,7 @@ export default function AdminPage() {
                     >
                       {busy
                         ? "Transaction en cours..."
-                        : "Réactiver TIWIZI"}
+                        : "Réactiver TAAZUR"}
                     </button>
                   )}
                 </div>

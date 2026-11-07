@@ -131,7 +131,7 @@ function normalizeExisting(item) {
   return {
     id: String(item.id),
     category: item.category || "governance",
-    title: item.title || "Notification TIWIZI",
+    title: item.title || "Notification TAAZUR",
     description: item.description || "",
     detail: item.detail || "",
     url: item.url || "/gouvernance",
@@ -519,7 +519,7 @@ export default function NotificationBell() {
         }
         aria-expanded={open}
         aria-controls="tiwizi-notifications-panel"
-        title="Mes notifications TIWIZI"
+        title="Mes notifications TAAZUR"
       >
         <Bell
           size={21}
@@ -586,7 +586,7 @@ export default function NotificationBell() {
 
           {connected && !correctNetwork && (
             <div className="tn-empty">
-              Sélectionnez le réseau TIWIZI.
+              Sélectionnez le réseau TAAZUR.
             </div>
           )}
 

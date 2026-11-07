@@ -67,7 +67,7 @@ export default function RequireRole({
         <h2>Vérification des autorisations</h2>
 
         <p>
-          TIWIZI vérifie vos permissions
+          TAAZUR vérifie vos permissions
           sur la blockchain.
         </p>
       </div>
