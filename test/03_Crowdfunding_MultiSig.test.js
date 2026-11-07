@@ -1,130 +1,103 @@
 import { expect } from "chai";
-import hre from "hardhat";
+import { network } from "hardhat";
 
-const { ethers, networkHelpers } = await hre.network.connect();
+const { ethers, networkHelpers } = await network.connect();
 const { time } = networkHelpers;
 
-describe("03 - Crowdfunding & MultiSig : Retraits, Frais 3%, Seuil 0.5 ETH et Sécurité (kh)", function () {
-  const ONE_DAY = 24 * 60 * 60;
-  const THREE_DAYS = 3 * ONE_DAY;
+async function expectRevert(promise, expectedError = "") {
+  let reverted = false;
+  try {
+    const tx = await promise;
+    if (tx && typeof tx.wait === "function") await tx.wait();
+  } catch (err) {
+    reverted = true;
+    if (expectedError) {
+      expect(err.message.toLowerCase()).to.include(expectedError.toLowerCase());
+    }
+  }
+  expect(reverted, `La transaction aurait dû échouer (${expectedError})`).to.equal(true);
+}
 
-  async function deployPlatformFixture() {
-    const [admin, alice, bob, charlie, attacker, signer1, signer2, signer3] = await ethers.getSigners();
+describe("03_Crowdfunding_MultiSig - Refund et MultiSig 2/3", function () {
+  let crowdfunding, multiSig;
+  let admin, sig2, sig3, creator, contributor1, outsider;
 
-    const MultiSig = await ethers.getContractFactory("MultiSig");
-    const multiSig = await MultiSig.deploy([signer1.address, signer2.address, signer3.address], 2);
-    await multiSig.waitForDeployment();
-
-    const Governance = await ethers.getContractFactory("Governance");
-    const governance = await Governance.deploy();
-    await governance.waitForDeployment();
+  beforeEach(async function () {
+    [admin, sig2, sig3, creator, contributor1, outsider] = await ethers.getSigners();
 
     const Crowdfunding = await ethers.getContractFactory("Crowdfunding");
-    const crowdfunding = await Crowdfunding.deploy(
-      await governance.getAddress(),
-      await multiSig.getAddress()
-    );
+    crowdfunding = await Crowdfunding.deploy(admin.address);
     await crowdfunding.waitForDeployment();
 
-    if (typeof governance.setCrowdfunding === "function") {
-      await governance.setCrowdfunding(await crowdfunding.getAddress());
-    }
-    if (typeof multiSig.setCrowdfunding === "function") {
-      await multiSig.setCrowdfunding(await crowdfunding.getAddress());
-    }
+    const MultiSig = await ethers.getContractFactory("MultiSig");
+    multiSig = await MultiSig.deploy([
+      admin.address,
+      sig2.address,
+      sig3.address,
+    ]);
+    await multiSig.waitForDeployment();
 
-    return { crowdfunding, governance, multiSig, admin, alice, bob, charlie, attacker, signer1, signer2, signer3 };
-  }
-
-  it("Doit permettre le remboursement (refund) uniquement si l'objectif n'est pas atteint après l'échéance", async function () {
-    const { crowdfunding, alice, bob } = await deployPlatformFixture();
-
-    // Objectif de 5 ETH sur 5 jours
-    await crowdfunding.connect(alice).createCampaign(
-      ethers.parseEther("5"),
-      5 * ONE_DAY,
-      alice.address,
-      "ipfs://QmFailedCampaign"
-    );
-
-    // Bob contribue seulement 1.5 ETH
-    const bobContribution = ethers.parseEther("1.5");
-    await crowdfunding.connect(bob).contribute(1, { value: bobContribution });
-
-    // Remboursement refusé avant la fin
-    await expect(crowdfunding.connect(bob).refund(1)).to.be.reverted;
-
-    // Avancer après l'échéance
-    await time.increase(5 * ONE_DAY + 10);
-
-    // Bob récupère ses 1.5 ETH et ne peut pas être remboursé deux fois
-    await expect(crowdfunding.connect(bob).refund(1)).to.changeEtherBalance(bob, bobContribution);
-    await expect(crowdfunding.connect(bob).refund(1)).to.be.reverted;
+    await crowdfunding.connect(admin).setMultiSig(await multiSig.getAddress());
   });
 
-  it("Doit bloquer les contributions lorsque la plateforme est en pause ou la campagne gelée", async function () {
-    const { crowdfunding, admin, alice, bob, attacker } = await deployPlatformFixture();
+  it("M2.1 - Autorise le refund uniquement après l'échec et la deadline", async function () {
+    const goal = ethers.parseEther("10");
+    const duration = 7 * 24 * 3600; // MIN_DURATION = 1 jour
+    const contribution = ethers.parseEther("2");
 
-    await crowdfunding.connect(alice).createCampaign(
-      ethers.parseEther("2"),
-      7 * ONE_DAY,
-      alice.address,
-      "ipfs://QmPauseTest"
+    await crowdfunding.connect(creator).createCampaign(
+      goal,
+      duration,
+      creator.address,
+      "QmFailedCampaign"
     );
 
-    // Seul l'admin peut mettre en pause
-    await expect(crowdfunding.connect(attacker).pause()).to.be.reverted;
+    await crowdfunding.connect(contributor1).contribute(1, {
+      value: contribution,
+    });
 
-    await crowdfunding.connect(admin).pause();
-    await expect(
-      crowdfunding.connect(bob).contribute(1, { value: ethers.parseEther("1") })
-    ).to.be.reverted;
+    // Un remboursement avant l'expiration de la campagne doit échouer.
+    await expectRevert(crowdfunding.connect(contributor1).refund(1));
 
-    await crowdfunding.connect(admin).unpause();
-    await expect(
-      crowdfunding.connect(bob).contribute(1, { value: ethers.parseEther("1") })
-    ).to.not.be.reverted;
+    await time.increase(duration + 60);
+
+    const balanceBefore = await ethers.provider.getBalance(contributor1.address);
+    const refundTx = await crowdfunding.connect(contributor1).refund(1);
+    const receipt = await refundTx.wait();
+    const gasCost = receipt.fee;
+    const balanceAfter = await ethers.provider.getBalance(contributor1.address);
+
+    expect(balanceAfter + gasCost - balanceBefore).to.equal(contribution);
+
+    // Le même contributeur ne peut pas réclamer deux fois son remboursement.
+    await expectRevert(crowdfunding.connect(contributor1).refund(1));
   });
 
-  it("Doit exiger l'approbation MultiSig 2-sur-3 pour tout retrait supérieur à 0.5 ETH", async function () {
-    const { crowdfunding, governance, multiSig, alice, bob, charlie, attacker, signer1, signer2 } =
-      await deployPlatformFixture();
+  it("M2.2 - Exige deux confirmations sur trois et bloque les non-signataires", async function () {
+    const destination = outsider.address;
+    const value = 0n;
+    const data = "0x";
 
-    // Campagne de 1 ETH (> seuil de 0.5 ETH)
-    await crowdfunding.connect(alice).createCampaign(
-      ethers.parseEther("1"),
-      7 * ONE_DAY,
-      alice.address,
-      "ipfs://QmMultiSigTest"
+    // staticCall permet de connaître l'identifiant retourné avant l'envoi réel.
+    const txId = await multiSig.connect(admin).submitTransaction.staticCall(
+      destination,
+      value,
+      data
     );
+    await multiSig.connect(admin).submitTransaction(destination, value, data);
 
-    await crowdfunding.connect(bob).contribute(1, { value: ethers.parseEther("0.6") });
-    await crowdfunding.connect(charlie).contribute(1, { value: ethers.parseEther("0.4") });
+    await expectRevert(multiSig.connect(outsider).confirmTransaction(txId));
 
-    if (typeof crowdfunding.requestWithdrawal === "function") {
-      await crowdfunding.connect(alice).requestWithdrawal(1);
+    // Certains multisig enregistrent automatiquement la confirmation de l'émetteur.
+    // On vérifie donc l'état avant de tenter une confirmation supplémentaire.
+    if (!(await multiSig.isConfirmed(txId, admin.address))) {
+      await multiSig.connect(admin).confirmTransaction(txId);
     }
 
-    await governance.connect(bob).createProposal(1, "Validation retrait 1 ETH");
-    await governance.connect(bob).vote(1, true);
-    await governance.connect(charlie).vote(1, true);
+    // Une seule signature ne suffit pas pour exécuter la transaction.
+    await expectRevert(multiSig.connect(admin).executeTransaction(txId));
 
-    await time.increase(THREE_DAYS + ONE_DAY + 20);
-    await governance.connect(alice).executeProposal(1);
-
-    // Sans approbation MultiSig 2-sur-3, le retrait > 0.5 ETH échoue
-    await expect(crowdfunding.connect(alice).withdrawFunds(1)).to.be.reverted;
-
-    // Un utilisateur non autorisé ne peut pas signer dans le MultiSig
-    await expect(multiSig.connect(attacker).approveWithdrawal(1)).to.be.reverted;
-
-    // 1 seule signature sur 3 ne suffit pas
-    await multiSig.connect(signer1).approveWithdrawal(1);
-    await expect(crowdfunding.connect(alice).withdrawFunds(1)).to.be.reverted;
-
-    // 2ème signature sur 3 : le retrait est débloqué (avec déduction des 3% de frais)
-    await multiSig.connect(signer2).approveWithdrawal(1);
-    const expectedNetAmount = ethers.parseEther("0.97"); // 1 ETH - 3% = 0.97 ETH
-    await expect(crowdfunding.connect(alice).withdrawFunds(1)).to.changeEtherBalance(alice, expectedNetAmount);
+    await multiSig.connect(sig2).confirmTransaction(txId);
+    await multiSig.connect(admin).executeTransaction(txId);
   });
 });

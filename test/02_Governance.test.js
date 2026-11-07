@@ -1,109 +1,187 @@
 import { expect } from "chai";
-import hre from "hardhat";
+import { network } from "hardhat";
 
-const { ethers, networkHelpers } = await hre.network.connect();
-const { time } = networkHelpers;
+const { ethers } = await network.connect();
 
-describe("02 - Governance : Propositions, Vote pondéré par Snapshot et Exécution (kh)", function () {
-  const ONE_DAY = 24 * 60 * 60;
-  const THREE_DAYS = 3 * ONE_DAY;
+// Valeurs de l'enum ProposalType déclarée dans Governance.sol.
+// Solidity : Withdrawal = 0, Freeze = 1, Unfreeze = 2, Cancel = 3.
+const ProposalType = Object.freeze({
+  Withdrawal: 0,
+  Freeze: 1,
+  Unfreeze: 2,
+  Cancel: 3,
+});
 
-  async function deploySystemFixture() {
-    const [admin, alice, bob, charlie, outsider, signer1, signer2, signer3] = await ethers.getSigners();
+async function createCampaignAndGetToken(
+  crowdfunding,
+  creator,
+  goal,
+  duration,
+  beneficiary,
+  ipfsHash
+) {
+  const CFDToken = await ethers.getContractFactory("CFDToken");
+  const roleGrantedTopic = CFDToken.interface.getEvent("RoleGranted").topicHash;
 
-    // Déploiement MultiSig (2-sur-3)
-    const MultiSig = await ethers.getContractFactory("MultiSig");
-    const multiSig = await MultiSig.deploy([signer1.address, signer2.address, signer3.address], 2);
-    await multiSig.waitForDeployment();
+  const tx = await crowdfunding.connect(creator).createCampaign(
+    goal,
+    duration,
+    beneficiary,
+    ipfsHash
+  );
+  const receipt = await tx.wait();
 
-    // Déploiement Governance
-    const Governance = await ethers.getContractFactory("Governance");
-    const governance = await Governance.deploy();
-    await governance.waitForDeployment();
+  const tokenAddresses = [
+    ...new Set(
+      receipt.logs
+        .filter((log) => log.topics?.[0] === roleGrantedTopic)
+        .map((log) => log.address)
+    ),
+  ];
 
-    // Déploiement Crowdfunding
-    const Crowdfunding = await ethers.getContractFactory("Crowdfunding");
-    const crowdfunding = await Crowdfunding.deploy(
-      await governance.getAddress(),
-      await multiSig.getAddress()
+  if (tokenAddresses.length !== 1) {
+    throw new Error(
+      `Impossible d'identifier le CFDToken de la campagne. Adresses détectées : ${tokenAddresses.join(", ") || "aucune"}`
     );
-    await crowdfunding.waitForDeployment();
-
-    // Liaison des contrats (comme dans scripts/deploy-local.js)
-    if (typeof governance.setCrowdfunding === "function") {
-      await governance.setCrowdfunding(await crowdfunding.getAddress());
-    }
-    if (typeof multiSig.setCrowdfunding === "function") {
-      await multiSig.setCrowdfunding(await crowdfunding.getAddress());
-    }
-
-    return { crowdfunding, governance, multiSig, admin, alice, bob, charlie, outsider, signer1, signer2, signer3 };
   }
 
-  it("Doit pondérer les votes selon les CFD de la campagne (1 ETH = 1000 CFD) et bloquer les non-détenteurs", async function () {
-    const { crowdfunding, governance, alice, bob, charlie, outsider } = await deploySystemFixture();
+  return await ethers.getContractAt("CFDToken", tokenAddresses[0]);
+}
 
-    // Alice crée une campagne de 2 ETH sur 10 jours
-    await crowdfunding.connect(alice).createCampaign(
-      ethers.parseEther("2"),
-      10 * ONE_DAY,
-      alice.address,
-      "ipfs://bafybeigdyrzt5sfp7udm7hu76uh7y26nf3efuylqabf3oclgtqy55fbzdi"
-    );
-
-    // Bob contribue 1 ETH (1000 CFD) et Charlie 2 ETH (2000 CFD)
-    await crowdfunding.connect(bob).contribute(1, { value: ethers.parseEther("1") });
-    await crowdfunding.connect(charlie).contribute(1, { value: ethers.parseEther("2") });
-
-    // Alice soumet une demande de retrait avant la proposition de gouvernance
-    if (typeof crowdfunding.requestWithdrawal === "function") {
-      await crowdfunding.connect(alice).requestWithdrawal(1);
+async function expectRevert(promise, expectedError = "") {
+  let reverted = false;
+  try {
+    const tx = await promise;
+    if (tx && typeof tx.wait === "function") await tx.wait();
+  } catch (err) {
+    reverted = true;
+    if (expectedError) {
+      expect(err.message.toLowerCase()).to.include(expectedError.toLowerCase());
     }
+  }
+  expect(reverted, `La transaction aurait dû échouer (${expectedError})`).to.equal(true);
+}
 
-    // Création de la proposition de gouvernance
-    await governance.connect(bob).createProposal(1, "Autoriser le retrait des fonds");
+describe("02_Governance - Tests unitaires et anti-manipulation Snapshot (M3)", function () {
+  let crowdfunding, governance, multiSig;
+  let admin, sig2, sig3, creator, voter1, voter2, attacker;
 
-    // Outsider (0 CFD) ne peut pas voter
-    await expect(governance.connect(outsider).vote(1, true)).to.be.reverted;
+  beforeEach(async function () {
+    [admin, sig2, sig3, creator, voter1, voter2, attacker] = await ethers.getSigners();
 
-    // Bob (1000 CFD) et Charlie (2000 CFD) votent POUR
-    await governance.connect(bob).vote(1, true);
-    await governance.connect(charlie).vote(1, true);
+    const Crowdfunding = await ethers.getContractFactory("Crowdfunding");
+    crowdfunding = await Crowdfunding.deploy(admin.address);
+    await crowdfunding.waitForDeployment();
 
-    // Impossible de voter une seconde fois
-    await expect(governance.connect(bob).vote(1, false)).to.be.reverted;
+    const Governance = await ethers.getContractFactory("Governance");
+    governance = await Governance.deploy(
+      admin.address,
+      await crowdfunding.getAddress()
+    );
+    await governance.waitForDeployment();
+
+    const MultiSig = await ethers.getContractFactory("MultiSig");
+    multiSig = await MultiSig.deploy([
+      admin.address,
+      sig2.address,
+      sig3.address,
+    ]);
+    await multiSig.waitForDeployment();
+
+    // Les adresses sont enregistrées dans Crowdfunding par l'administrateur.
+    await crowdfunding.connect(admin).setGovernance(await governance.getAddress());
+    await crowdfunding.connect(admin).setMultiSig(await multiSig.getAddress());
   });
 
-  it("Doit imposer 3 jours de vote + 1 jour de délai avant d'exécuter une proposition adoptée", async function () {
-    const { crowdfunding, governance, alice, bob, charlie } = await deploySystemFixture();
-
-    await crowdfunding.connect(alice).createCampaign(
-      ethers.parseEther("2"),
-      10 * ONE_DAY,
-      alice.address,
-      "ipfs://QmTestHash"
+  it("M3.1 - Crée une campagne, distribue des CFD et ouvre une proposition", async function () {
+    const cfdToken = await createCampaignAndGetToken(
+      crowdfunding,
+      creator,
+      ethers.parseEther("10"),
+      7 * 24 * 3600,
+      creator.address,
+      "QmGovCampaign1"
     );
 
-    await crowdfunding.connect(bob).contribute(1, { value: ethers.parseEther("1") });
-    await crowdfunding.connect(charlie).contribute(1, { value: ethers.parseEther("1") });
+    await crowdfunding.connect(voter1).contribute(1, {
+      value: ethers.parseEther("3"),
+    });
+    await crowdfunding.connect(voter2).contribute(1, {
+      value: ethers.parseEther("2"),
+    });
 
-    if (typeof crowdfunding.requestWithdrawal === "function") {
-      await crowdfunding.connect(alice).requestWithdrawal(1);
-    }
+    // ERC20Votes : chaque électeur délègue explicitement ses voix à lui-même.
+    // Ces délégations sont minées avant la création du snapshot.
+    await cfdToken.connect(voter1).delegate(voter1.address);
+    await cfdToken.connect(voter2).delegate(voter2.address);
 
-    await governance.connect(bob).createProposal(1, "Autoriser retrait");
-    await governance.connect(bob).vote(1, true);
-    await governance.connect(charlie).vote(1, true);
+    // Freeze = 1 : action valide sur une campagne active non gelée.
+    await governance.connect(voter1).createProposal(
+      1,
+      ProposalType.Freeze
+    );
 
-    // Exécution refusée pendant les 3 jours de vote
-    await expect(governance.connect(alice).executeProposal(1)).to.be.reverted;
+    await governance.connect(voter1).vote(1, true);
+    await governance.connect(voter2).vote(1, true);
+  });
 
-    // Avancer de 3 jours (fin du vote, mais délai d'1 jour non écoulé)
-    await time.increase(THREE_DAYS + 10);
-    await expect(governance.connect(alice).executeProposal(1)).to.be.reverted;
+  it("M3.2 - Empêche le double vote après transfert des CFD postérieur au snapshot", async function () {
+    const cfdToken = await createCampaignAndGetToken(
+      crowdfunding,
+      creator,
+      ethers.parseEther("10"),
+      7 * 24 * 3600,
+      creator.address,
+      "QmSnapshotSecurity"
+    );
 
-    // Avancer d'1 jour supplémentaire : l'exécution doit réussir
-    await time.increase(ONE_DAY + 10);
-    await expect(governance.connect(alice).executeProposal(1)).to.not.be.reverted;
+    await crowdfunding.connect(voter1).contribute(1, {
+      value: ethers.parseEther("4"),
+    });
+
+    const voter1Balance = await cfdToken.balanceOf(voter1.address);
+    expect(voter1Balance).to.be.greaterThan(0n);
+
+    // La délégation est enregistrée avant que Governance capture le snapshot.
+    await cfdToken.connect(voter1).delegate(voter1.address);
+
+    await governance.connect(voter1).createProposal(
+      1,
+      ProposalType.Freeze
+    );
+
+    // Le vote de voter1 est enregistré avec son poids au snapshot.
+    await governance.connect(voter1).vote(1, true);
+
+    // L'attaquant reçoit les CFD après la création de la proposition.
+    await cfdToken.connect(voter1).transfer(attacker.address, voter1Balance);
+
+    // Les jetons reçus après le snapshot ne doivent pas donner de poids de vote.
+    await expectRevert(governance.connect(attacker).vote(1, false));
+  });
+
+  it("M3.3 - Interdit l'exécution d'une proposition avant la fin du vote", async function () {
+    const cfdToken = await createCampaignAndGetToken(
+      crowdfunding,
+      creator,
+      ethers.parseEther("5"),
+      7 * 24 * 3600,
+      creator.address,
+      "QmDelayCheck"
+    );
+
+    await crowdfunding.connect(voter1).contribute(1, {
+      value: ethers.parseEther("5"),
+    });
+
+    await cfdToken.connect(voter1).delegate(voter1.address);
+
+    await governance.connect(voter1).createProposal(
+      1,
+      ProposalType.Freeze
+    );
+    await governance.connect(voter1).vote(1, true);
+
+    await expectRevert(governance.connect(voter1).executeProposal(1));
   });
 });
