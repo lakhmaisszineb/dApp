@@ -77,7 +77,7 @@ export default function TiwiziCompanion() {
   }, []);
 
   return (
-    <div className="tiwizi-companion" aria-hidden="true">
+    <div className="taa-zur-companion" aria-hidden="true">
       <svg
         ref={svgRef}
         viewBox="0 0 420 420"

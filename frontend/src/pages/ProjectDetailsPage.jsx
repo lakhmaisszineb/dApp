@@ -204,7 +204,7 @@ function ContributionPanel({ project, onConfirmed }) {
             onClick={switchNetwork}
             disabled={walletBusy}
           >
-            Utiliser le réseau de Tiwizi
+            Utiliser le réseau de Taazur
           </button>
         </div>
       ) : (

@@ -77,7 +77,7 @@ export default function TransferCFDPage() {
     }
 
     if (!account || !connected || !correctNetwork) {
-      setError("Connectez MetaMask au réseau TIWIZI.");
+      setError("Connectez MetaMask au réseau TAAZUR.");
       return;
     }
 

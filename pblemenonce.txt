@@ -1,0 +1,14 @@
+$adresse = "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"
+
+$requete = @{
+    jsonrpc = "2.0"
+    id      = 1
+    method  = "eth_getTransactionCount"
+    params  = @($adresse, "pending")
+} | ConvertTo-Json -Compress
+
+$reponse = Invoke-RestMethod -Uri "http://127.0.0.1:8545" `
+    -Method Post -ContentType "application/json" -Body $requete
+
+if ($reponse.error) { throw $reponse.error.message }
+[Convert]::ToInt64($reponse.result.Substring(2), 16)

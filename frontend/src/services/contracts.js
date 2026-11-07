@@ -14,7 +14,7 @@ import deployment from "../contracts/deployment.json";
 import crowdfundingArtifact from "../contracts/Crowdfunding.json";
 import governanceArtifact from "../contracts/Governance.json";
 import multiSigArtifact from "../contracts/MultiSig.json";
-
+import { sendWithFeePreview } from "./transactionFees.js";
 // ============================================================
 // TIWIZI - SERVICE DE CONNEXION AUX SMART CONTRACTS
 // Compatible avec le circuit breaker et les échéances compensées
@@ -453,12 +453,13 @@ export async function contributeToCampaign(
   // ENVOI DE LA TRANSACTION
   // ----------------------------------------------------------
 
-  const tx = await crowdfunding.contribute(
-    campaignId,
-    {
-      value: amount,
-    }
-  );
+  const tx = await sendWithFeePreview({
+    signer,
+    method: crowdfunding.contribute,
+    args: [campaignId],
+    label: "Contribuer à la campagne",
+    value: amount,
+  });
 
   // Notifier l'interface dès la soumission.
   onSubmitted?.(tx.hash);

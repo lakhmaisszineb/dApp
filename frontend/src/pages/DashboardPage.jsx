@@ -706,7 +706,7 @@ export default function DashboardPage() {
           </div>
 
           <h1>
-            Mon espace <span>TIWIZI</span>
+            Mon espace <span>TAAZUR</span>
           </h1>
 
           <p>
@@ -910,7 +910,7 @@ export default function DashboardPage() {
             <EmptySection
               icon={FolderKanban}
               title="Aucun projet pour le moment"
-              description="Créez votre première campagne sur TIWIZI."
+              description="Créez votre première campagne sur TAAZUR."
               to="/creer"
               action="Créer un projet"
             />
@@ -1108,7 +1108,7 @@ export default function DashboardPage() {
 
           <p>
             Explorez les projets de la communauté
-            ou lancez une campagne TIWIZI.
+            ou lancez une campagne TAAZUR.
           </p>
         </div>
 

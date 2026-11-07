@@ -552,7 +552,7 @@ export default function MultiSigPage() {
           </span>
 
           <h1>
-            Multisignature TIWIZI
+            Multisignature TAAZUR
           </h1>
 
           <p>

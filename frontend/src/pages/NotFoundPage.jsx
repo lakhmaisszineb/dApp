@@ -1,4 +1,5 @@
 import { Link } from "react-router";
+import { sendWithFeePreview } from "../services/transactionFees.js";
 
 export default function NotFoundPage() {
   return (

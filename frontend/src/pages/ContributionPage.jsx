@@ -1,6 +1,6 @@
 import { Link } from "react-router";
 import ContributionForm from "../components/ContributionForm.jsx";
-
+import { sendWithFeePreview } from "../services/transactionFees.js";
 export default function ContributionPage() {
   return (
     <>

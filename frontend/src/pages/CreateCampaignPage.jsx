@@ -1,6 +1,6 @@
 import { useRef, useState } from "react";
 import { Link } from "react-router";
-
+import CampaignFeePreview from "../components/CampaignFeePreview.jsx";
 import {
   Contract,
   ZeroAddress,
@@ -466,7 +466,7 @@ export default function CreateCampaignPage() {
             Publication confirmée
           </p>
 
-          <h2>Votre projet rejoint Tiwizi.</h2>
+          <h2>Votre projet rejoint Taazur.</h2>
 
           {campaignId && (
             <p>
@@ -733,6 +733,7 @@ export default function CreateCampaignPage() {
                   <dd>{image?.name}</dd>
                 </div>
               </dl>
+              <CampaignFeePreview goal={form.goal} />
 
               <div className="creation-notice">
                 <h3>Avant de publier</h3>
@@ -796,7 +797,7 @@ export default function CreateCampaignPage() {
 
               {connected && !correctNetwork && (
                 <p>
-                  Sélectionnez le réseau de Tiwizi dans
+                  Sélectionnez le réseau de TAAZUR dans
                   votre portefeuille pour publier.
                 </p>
               )}

@@ -1,7 +1,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router";
-
+import { sendWithFeePreview } from "../services/transactionFees.js";
 import WalletConnection from "../components/WalletConnection.jsx";
 import PlatformStatus from "../components/PlatformStatus.jsx";
 import { useWallet } from "../contexts/useWallet.js";
@@ -228,12 +228,12 @@ export default function WalletPage() {
       <header className="tw-wallet-header">
         <div>
           <p className="tw-eyebrow">
-            TIWIZI / ESPACE PERSONNEL
+            TAAZUR / ESPACE PERSONNEL
           </p>
           <h1>Mon portefeuille</h1>
           <p>
             Gérez vos participations et retrouvez vos
-            droits au sein des projets TIWIZI.
+            droits au sein des projets TAAZUR.
           </p>
         </div>
 
@@ -260,7 +260,7 @@ export default function WalletPage() {
         <section className="tw-empty-panel">
           <h2>Vérifiez votre réseau</h2>
           <p>
-            Sélectionnez le réseau TIWIZI dans MetaMask
+            Sélectionnez le réseau TAAZUR dans MetaMask
             pour accéder à vos données blockchain.
           </p>
           <div className="tw-connection-area">

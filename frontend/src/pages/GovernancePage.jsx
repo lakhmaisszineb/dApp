@@ -1,5 +1,6 @@
 import { Link } from "react-router";
 import GovernanceDashboard from "../components/GovernanceDashboard.jsx";
+import { sendWithFeePreview } from "../services/transactionFees.js";
 
 export default function GovernancePage() {
   return (

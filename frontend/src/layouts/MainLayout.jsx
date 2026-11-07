@@ -152,8 +152,8 @@ export default function MainLayout() {
       PAGE_TITLES[location.pathname] ||
       (
         location.pathname.startsWith("/campagnes/")
-          ? "Détails du projet — TIWIZI"
-          : "TIWIZI"
+          ? "Détails du projet — TAAZUR"
+          : "TAAZUR"
       );
 
     setMobileMenuOpen(false);
@@ -276,10 +276,10 @@ export default function MainLayout() {
           <Link
             to="/"
             className="brand tl-brand"
-            aria-label="TIWIZI — Accueil"
+            aria-label="TAAZUR — Accueil"
           >
             <span className="tiwizi-brand-name">
-              tiwizi
+              taazur
 
               <span
                 className="tiwizi-brand-dot"
@@ -395,8 +395,8 @@ export default function MainLayout() {
                 <div className="tl-account-heading">
                   <strong>
                     {connected
-                      ? "Mon espace TIWIZI"
-                      : "Bienvenue sur TIWIZI"}
+                      ? "Mon espace TAAZUR"
+                      : "Bienvenue sur TAAZUR"}
                   </strong>
 
                   <span>
@@ -553,7 +553,7 @@ export default function MainLayout() {
       {/* ==================================================== */}
 
       <footer className="app-footer">
-        <strong>TIWIZI</strong>
+        <strong>TAAZUR</strong>
 
         <p>
           Ensemble, donnons vie aux projets.

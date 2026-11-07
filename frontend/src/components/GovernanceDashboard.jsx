@@ -390,7 +390,7 @@ export default function GovernanceDashboard() {
       <h2>Gouvernance des campagnes</h2>
 
       <p>
-        Les décisions de TIWIZI sont prises par les
+        Les décisions de TAAZUR sont prises par les
         détenteurs de CFD, avec un poids de vote enregistré
         au snapshot de chaque proposition.
       </p>
