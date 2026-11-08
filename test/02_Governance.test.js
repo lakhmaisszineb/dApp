@@ -125,7 +125,9 @@ describe("02_Governance - Tests unitaires et anti-manipulation Snapshot (M3)", f
     await governance.connect(voter2).vote(1, true);
   });
 
-  it("M3.2 - Empêche le double vote après transfert des CFD postérieur au snapshot", async function () {
+  it(
+  "M3.2 - Empêche le double vote et l'acquisition de pouvoir après le snapshot",
+  async function () {
     const cfdToken = await createCampaignAndGetToken(
       crowdfunding,
       creator,
@@ -151,7 +153,14 @@ describe("02_Governance - Tests unitaires et anti-manipulation Snapshot (M3)", f
     );
 
     // Le vote de voter1 est enregistré avec son poids au snapshot.
-    await governance.connect(voter1).vote(1, true);
+await governance.connect(voter1).vote(1, true);
+
+// Une même adresse ne peut pas voter deux fois.
+// On vérifie le revert sans dépendre du message
+// retourné par le provider Hardhat.
+await expectRevert(
+  governance.connect(voter1).vote(1, false)
+);
 
     // L'attaquant reçoit les CFD après la création de la proposition.
     await cfdToken.connect(voter1).transfer(attacker.address, voter1Balance);
@@ -183,5 +192,36 @@ describe("02_Governance - Tests unitaires et anti-manipulation Snapshot (M3)", f
     await governance.connect(voter1).vote(1, true);
 
     await expectRevert(governance.connect(voter1).executeProposal(1));
+    // Après les 3 jours de vote, le délai supplémentaire
+    // d'une journée n'est pas encore écoulé.
+    await ethers.provider.send(
+      "evm_increaseTime",
+      [3 * 24 * 60 * 60]
+    );
+
+    await ethers.provider.send("evm_mine", []);
+
+    await expectRevert(
+      governance.connect(voter1).executeProposal(1),
+      "Execution delay not elapsed"
+    );
+
+    // Après le délai supplémentaire d'un jour,
+    // l'exécution devient possible.
+    await ethers.provider.send(
+      "evm_increaseTime",
+      [24 * 60 * 60]
+    );
+
+    await ethers.provider.send("evm_mine", []);
+
+    await (
+      await governance.connect(voter1).executeProposal(1)
+    ).wait();
+
+    expect(
+    await governance.getProposalState(1)
+    ).to.equal(3);
   });
 });
+
