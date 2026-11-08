@@ -65,12 +65,15 @@ interface ICFDTokenVotes {
     function getPastVotes(
         address account,
         uint256 blockNumber
-    ) external view returns (uint256);
+    ) external view returns (uint256); //le nombre de voix qu'une adresse possédait à un bloc antérieur.
 
     function getPastTotalSupply(
         uint256 blockNumber
-    ) external view returns (uint256);
+    ) external view returns (uint256); //le nombre total d'unités CFD en circulation à ce bloc.
 }
+// Imaginons qu'Alice possédait 1 000 CFD au bloc 500 et qu'elle les transfère ensuite à Bob au bloc 510.
+// Si le snapshot de la proposition correspond au bloc 500, le pouvoir de vote reste basé sur la situation à ce bloc :
+
 
 /**
  * @title Governance
@@ -93,56 +96,62 @@ contract Governance is AccessControl, ReentrancyGuard {
     // =============================================================
     //                        CONFIGURATION
     // =============================================================
-
-    uint256 public constant QUORUM_BPS = 2000;
+    // public c-a-d consultable depuis lexterieur du contrat et constant signifie que la valeur est connue à la compilation et ne peut pas être mondifiée pendant l exécution
+    uint256 public constant QUORUM_BPS = 2000; // 20% (représente la participation minimale c-a-d on doit avoir au minimum 20% de nombre de CFD global)
     uint256 public constant BPS_DENOMINATOR = 10_000;
 
-    uint256 public constant VOTING_PERIOD = 3 days;
-    uint256 public constant EXECUTION_DELAY = 1 days;
+    uint256 public constant VOTING_PERIOD = 3 days; // les participant dispose 3 jours pour voter
+    uint256 public constant EXECUTION_DELAY = 1 days;// une journée d'attente après la période de vote
 
-    ICrowdfunding public immutable crowdfunding;
+    ICrowdfunding public immutable crowdfunding;//cette variable conserve l adresse du contrat crowfunding sous forme d interface immutable signifie que l adresse est definie au deploiement et ne peut pas etre changée
 
     // =============================================================
     //                            TYPES
     // =============================================================
 
     enum ProposalType {
-        Withdrawal,
-        Freeze,
-        Unfreeze,
-        Cancel
+        Withdrawal, // autorise un retrait
+        Freeze,  // geler une campagne
+        Unfreeze, // dégeler une campagne
+        Cancel // annuler une campagne
     }
 
+    // l etat du vote
+
     enum ProposalState {
-        Active,
-        Succeeded,
-        Defeated,
-        Executed
+        Active,  // la periode du vote est encore ouverte
+        Succeeded, // la ^eriode est termine et la majorite est pour
+        Defeated, // la proposition n'a pas satisfait les conditions d adoption
+        Executed // la decision à déjà été appliquée
     }
+    // une proposition peut etre succeded et non exécutable puisque nous imposons aussi un délai supp d un jour
 
     /**
      * @dev Aucun mapping dans cette structure :
      * elle peut être renvoyée intégralement par une fonction de lecture.
      */
+
+     /struct regroupe plusieurs variables qui décrivent un objet 
     struct Proposal {
-        uint256 campaignId;
-        ProposalType proposalType;
+        uint256 campaignId; //exemple 1
+        ProposalType proposalType;// exemple freez
 
-        address proposer;
-        address token;
+        address proposer;// exemple alice
+        address token; // CFD-1
 
-        uint256 createdAt;
+        uint256 createdAt; // 
         uint256 deadline;
         uint256 executableAt;
 
-        uint256 snapshotBlock;
-        uint256 snapshotSupply;
-        uint256 quorumRequired;
+        uint256 snapshotBlock; // bloc 500
+        uint256 snapshotSupply;// 2000cfd
+        uint256 quorumRequired;// 400 cfd(20% de total des cfd)
 
-        uint256 forVotes;
-        uint256 againstVotes;
+        uint256 forVotes;// 1500 pour
+        uint256 againstVotes; // 500 contre
 
-        bool executed;
+        // pour respecter le quorum il faut que (500+1500>=400)
+        bool executed;// déjà exécuté true or false
     }
 
     /**
@@ -153,7 +162,7 @@ contract Governance is AccessControl, ReentrancyGuard {
         address beneficiary;
         uint256 deadline;
         address token;
-        uint8 status;
+        uint8 status; // le status déclaré dans crowfunding 0 pour active 1 pour successful 2 pour failed 3 pour cancelled
         bool fundsWithdrawn;
         bool isFrozen;
     }
@@ -162,13 +171,13 @@ contract Governance is AccessControl, ReentrancyGuard {
     //                          STOCKAGE
     // =============================================================
 
-    uint256 public proposalCount;
+    uint256 public proposalCount; // compte les propositions crées et il génère leurs identifiant
 
     /**
      * @dev Stockage privé avec lecture explicite plus bas.
      * Cela évite un getter automatique renvoyant trop de valeurs.
      */
-    mapping(uint256 => Proposal) private _proposals;
+    mapping(uint256 => Proposal) private _proposals;//_proposals associe un identifiant à sa proposition
 
     /// @notice proposition => adresse => a déjà voté.
     mapping(uint256 => mapping(address => bool))
@@ -177,26 +186,27 @@ contract Governance is AccessControl, ReentrancyGuard {
     // =============================================================
     //                         ÉVÉNEMENTS
     // =============================================================
-
+    // lorqu'une proposition est créée
     event ProposalCreated(
-        uint256 indexed proposalId,
-        uint256 indexed campaignId,
-        ProposalType proposalType,
-        address indexed proposer,
-        uint256 deadline,
-        uint256 snapshotBlock
+        uint256 indexed proposalId,// identifiant unique pour chaque proposition (parce qu'une meme campagne peut avoir plusieurs propositions)
+        uint256 indexed campaignId,// l identifiant de la campagne concernée par la proposition
+        ProposalType proposalType, // le type de la proposition on a déja déclarée 4 types
+        address indexed proposer, // c est l adresse de la personne qui a créé la proposition
+        uint256 deadline,// date limite de vote 
+        uint256 snapshotBlock // c est le bloc servant de reference pour calculer le pouvoir de vote historique
     );
-
+    //lorsqu'un utilisateur vote.
     event VoteCast(
-        uint256 indexed proposalId,
-        address indexed voter,
-        bool support,
-        uint256 weight
+        uint256 indexed proposalId,//l id de la proposition
+        address indexed voter,//adresse de la personne qui vote
+        bool support,//sens du vote (true signifie pour et false signifie contre)
+        uint256 weight // le poid du vote (par exemple 100cfd)
     );
-
+    //lorsqu'une proposition approuvée est exécutée.
     event ProposalExecuted(
         uint256 indexed proposalId
     );
+    // cest trois événement permettent de suivre tout le cycle de vie d'une proposition de gouvernance, depuis sa création jusqu à son exécution
 
     // =============================================================
     //                         CONSTRUCTEUR
@@ -210,6 +220,7 @@ contract Governance is AccessControl, ReentrancyGuard {
      * pour voter à la place des détenteurs, modifier les résultats
      * ou contourner les conditions d'exécution.
      */
+     // le constucteur s'exécute une seule fois, lors du démloiement du contrat il reçoit deux addresses admin et le contrat crowfunding
     constructor(
         address admin,
         address crowdfundingAddress
@@ -220,19 +231,18 @@ contract Governance is AccessControl, ReentrancyGuard {
         );
 
         require(
-            crowdfundingAddress != address(0),
             "Crowdfunding zero address"
         );
 
         require(
-            crowdfundingAddress.code.length > 0,
+            crowdfundingAddress.code.length > 0,//Elle vérifie qu'un code de smart contract existe à cette adresse au moment du déploiement.
             "Crowdfunding must be a contract"
         );
 
         _grantRole(DEFAULT_ADMIN_ROLE, admin);
 
         crowdfunding =
-            ICrowdfunding(crowdfundingAddress);
+            ICrowdfunding(crowdfundingAddress);//enregistre la référence qui sera utilisée par toutes les fonctions de gouvernance.
     }
 
     // =============================================================
